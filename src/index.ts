@@ -32,18 +32,33 @@ connection
     console.error("Erro ao conectar ao PostgreSQL:", err);
   });
 
-// BUSCAR TODAS AS RECEITAS
 
+// BUSCAR TODAS AS RECEITAS
 app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
   //os valores vem como string, se converter antes com o number() não funciona
   const pageStr = req.query.page;
   const limitStr = req.query.limit;
+
+  if (
+    pageStr !== undefined &&
+    (isNaN(Number(pageStr)) || Number(pageStr) < 1)
+  ) {
+    res.status(400).json({ message: "Page must be a positive number." });
+    return;
+  }
+
+  if (
+    limitStr !== undefined &&
+    (isNaN(Number(limitStr)) || Number(limitStr) < 1)
+  ) {
+    res.status(400).json({ message: "Limit must be a positive number." });
+    return;
+  }
+  
   const page = Number(pageStr) || 1; // Pagina atual sendo 1
   const limit = Number(limitStr) || 10; // Quantidade de itens por página
   const offset = (page - 1) * limit; // Fazendo o cálculo do offset
-
-  //console.log(`Page: ${page}, Limit: ${limit}, Offset: ${offset}`); pra teste
-
+  
   try {
     const recipes = await connection("recipes")
       .select("*")
@@ -61,6 +76,7 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
       .json({ message: error.message || "An unexpected error occurred" });
   }
 });
+
 
 // Buscar receitas com titulo especifico
 app.get(
