@@ -111,6 +111,29 @@ app.get(
   }
 );
 
+// Rota para excluir receita por ID (incompleta)
+app.delete(
+  "/recipes/:id",
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new Error("Recipe ID is required");
+    }
+
+    try {
+      const recipe = await connection("recipes").where("id_recipe", id).first();
+
+      if (!recipe) {
+        throw new Error("Recipe not found");
+      }
+
+      // Falta terminar esse bloco ainda
+      
+    }
+  }
+);
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
