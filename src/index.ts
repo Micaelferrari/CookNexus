@@ -62,6 +62,55 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// Buscar receitas com titulo especifico
+app.get(
+  "/recipes/:title",
+  async (req: Request, res: Response): Promise<void> => {
+    
+    const pageStr = req.query.page; 
+    const limitStr = req.query.limit; 
+
+    if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
+      res.status(400).json({ message: "Page must be a positive number." });
+      return;
+    }
+
+    if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
+      res.status(400).json({ message: "Limit must be a positive number." });
+      return;
+    }
+
+    const page = Number(pageStr) || 1; // Página atual sendo 1
+    const limit = Number(limitStr) || 10; // Quantidade de itens por página
+    const offset = (page - 1) * limit; // Fazendo o cálculo do offset
+
+    const { title } = req.params;
+
+    if (!title || title.trim() === "") {
+      res.status(400).json({ message: "Title is required." });
+      return;
+    }
+
+    try {
+      const recipes = await connection("recipes")
+        .where("title", "ILIKE", `%${title}%`)
+        .limit(limit)
+        .offset(offset);
+
+      if (recipes.length === 0) {
+        res.status(404).json({ message: "No recipes found." });
+        return;
+      }
+
+      res.status(200).json({
+        recipes
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Error fetching recipes." });
+    }
+  }
+);
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
