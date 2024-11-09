@@ -155,6 +155,43 @@ app.delete(
   }
 );
 
+// CRIAR RECEITA
+app.post("/recipes", async (req: Request, res: Response): Promise<void> => {
+  const { title, description, prep_time, user_id, modo_preparo } = req.body;
+  const gerarID = generateId(); // Chamar a função para gerar um ID
+
+  if (!title || !description || !prep_time || !user_id || !modo_preparo) {
+    throw new Error("All fields are required");
+  }
+
+  try {
+    // Verifica se o user_id existe
+    const userExists = await connection("users")
+      .where("id_user", user_id)
+      .first();
+
+    if (!userExists) {
+      throw new Error("User not found");
+    }
+
+    await connection("recipes").insert({
+      id_recipe: gerarID,
+      title,
+      description,
+      prep_time,
+      user_id,
+      modo_preparo,
+    });
+
+    res.status(201).json("Recipe created successfully!");
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ message: error.message || "An unexpected error occurred" });
+  }
+});
+
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
