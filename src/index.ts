@@ -127,7 +127,7 @@ app.get(
   }
 );
 
-// Rota para excluir receita por ID (incompleta)
+// Rota para excluir receita por ID (completa)
 app.delete(
   "/recipes/:id",
   async (req: Request, res: Response): Promise<void> => {
@@ -144,7 +144,12 @@ app.delete(
         throw new Error("Recipe not found");
       }
 
-      // Falta terminar esse bloco ainda
+      await connection("recipes").where("id_recipe", id).del();
+      res.status(200).json({ message: "Recipe deleted successfully!" });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ message: error.message || "Error deleting recipe" });
       
     }
   }
