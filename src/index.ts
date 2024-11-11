@@ -32,7 +32,6 @@ connection
     console.error("Erro ao conectar ao PostgreSQL:", err);
   });
 
-
 // BUSCAR TODAS AS RECEITAS
 app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
   //os valores vem como string, se converter antes com o number() não funciona
@@ -54,11 +53,11 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ message: "Limit must be a positive number." });
     return;
   }
-  
+
   const page = Number(pageStr) || 1; // Pagina atual sendo 1
   const limit = Number(limitStr) || 10; // Quantidade de itens por página
   const offset = (page - 1) * limit; // Fazendo o cálculo do offset
-  
+
   try {
     const recipes = await connection("recipes")
       .select("*")
@@ -77,21 +76,25 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-
 // Buscar receitas com titulo especifico
 app.get(
   "/recipes/:title",
   async (req: Request, res: Response): Promise<void> => {
-    
-    const pageStr = req.query.page; 
-    const limitStr = req.query.limit; 
+    const pageStr = req.query.page;
+    const limitStr = req.query.limit;
 
-    if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
+    if (
+      pageStr !== undefined &&
+      (isNaN(Number(pageStr)) || Number(pageStr) < 1)
+    ) {
       res.status(400).json({ message: "Page must be a positive number." });
       return;
     }
 
-    if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
+    if (
+      limitStr !== undefined &&
+      (isNaN(Number(limitStr)) || Number(limitStr) < 1)
+    ) {
       res.status(400).json({ message: "Limit must be a positive number." });
       return;
     }
@@ -119,10 +122,12 @@ app.get(
       }
 
       res.status(200).json({
-        recipes
+        recipes,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Error fetching recipes." });
+      res
+        .status(500)
+        .json({ message: error.message || "Error fetching recipes." });
     }
   }
 );
@@ -150,7 +155,6 @@ app.delete(
       res
         .status(500)
         .json({ message: error.message || "Error deleting recipe" });
-      
     }
   }
 );
@@ -191,6 +195,68 @@ app.post("/recipes", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// BUSCAR POR RECEITA QUE TENHA UM INGREDIENTE ESPECÍFICO
+app.get(
+  "/recipes/ingredients/:ingredient",
+  async (req: Request, res: Response): Promise<void> => {
+    const { ingredient } = req.params;
+    //os valores vem como string, se converter antes com o number() não funciona
+    const pageStr = req.query.page;
+    const limitStr = req.query.limit;
+
+    if (
+      pageStr !== undefined &&
+      (isNaN(Number(pageStr)) || Number(pageStr) < 1)
+    ) {
+      res.status(400).json({ message: "Page must be a positive number." });
+      return;
+    }
+
+    if (
+      limitStr !== undefined &&
+      (isNaN(Number(limitStr)) || Number(limitStr) < 1)
+    ) {
+      res.status(400).json({ message: "Limit must be a positive number." });
+      return;
+    }
+
+    const page = Number(pageStr) || 1; // Pagina atual sendo 1
+    const limit = Number(limitStr) || 10; // Quantidade de itens por página
+    const offset = (page - 1) * limit; // Fazendo o cálculo do offset
+
+    //console.log(`Page: ${page}, Limit: ${limit}, Offset: ${offset}`); pra teste
+
+    if (typeof ingredient !== "string" || ingredient.trim() === "") {
+      throw new Error("Invalid ingredient");
+    }
+
+    try {
+      const recipes = await connection("recipe_ingredient")
+        .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
+        .join(
+          "ingredients",
+          "recipe_ingredient.id_ingredient",
+          "ingredients.id_ingredient"
+        )
+        .where("ingredients.name_ingredient", "ILIKE", `%${ingredient}%`)
+        .select("recipes.*")
+        .limit(limit)
+        .offset(offset);
+
+      if (recipes.length === 0) {
+        throw new Error("No recipes found with the specified ingredient.");
+      }
+
+      res.status(200).json({
+        recipes,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        message: error.message || "Error fetching recipes by ingredient",
+      });
+    }
+  }
+);
 
 // Iniciar o servidor
 app.listen(3000, () => {
