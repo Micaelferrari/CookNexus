@@ -257,6 +257,43 @@ app.get(
     }
   }
 );
+// buscar receitas de um usuário específico
+app.get("/recipes/users/:username", async (req: Request, res: Response) => {
+  const { username } = req.params;
+  const paginaAtual = Number(req.query.page) || 1; //Exibindo a pagina atual que o padrao eh 1
+  const limitarItens = Number(req.query.limit) || 10; //Limitando a quantidade de itens que deve aparecer na tela
+  const offset = (paginaAtual - 1) * limitarItens;
+
+  if (!username || typeof username !== "string") {
+    throw new Error("Invalid username parameter.");
+  }
+
+  try {
+    const user = await connection("users").where("name_user", username).first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const recipes = await connection("recipes")
+      .where("user_id", user.id_user)
+      .select("recipes.*")
+      .limit(limitarItens)
+      .offset(offset);
+
+    if (recipes.length === 0) {
+      throw new Error("No recipes found for this user.");
+    }
+
+    res.status(200).json({
+      recipes,
+    });
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ message: error.message || "Error fetching recipes for user" });
+  }
+});
 
 // Iniciar o servidor
 app.listen(3000, () => {
