@@ -257,6 +257,7 @@ app.get(
     }
   }
 );
+
 // buscar receitas de um usuário específico
 app.get("/recipes/users/:username", async (req: Request, res: Response) => {
   const { username } = req.params;
@@ -294,6 +295,52 @@ app.get("/recipes/users/:username", async (req: Request, res: Response) => {
       .json({ message: error.message || "Error fetching recipes for user" });
   }
 });
+
+// ATUALIZAR INGREDIENTE EM UMA RECEITA
+app.patch(
+  "/recipes/:id_recipe/ingredients/:id_ingredient",
+  async (req: Request, res: Response): Promise<void> => {
+    const { id_recipe, id_ingredient } = req.params;
+    const { quantity } = req.body;
+
+    if (!id_recipe || !id_ingredient) {
+      throw new Error("Recipe ID and Ingredient ID are required.");
+    }
+
+    try {
+      const recipeExists = await connection("recipes")
+        .where("id_recipe", id_recipe)
+        .first();
+      const ingredientExists = await connection("ingredients")
+        .where("id_ingredient", id_ingredient)
+        .first();
+
+      if (!recipeExists) {
+        throw new Error("Recipe not found.");
+      }
+
+      if (!ingredientExists) {
+        throw new Error("Ingredient not found.");
+      }
+
+      // Fazer teste de funcionamento
+      await connection("recipe_ingredient")
+        .where({ id_recipe, id_ingredient })
+        .update({ quantity });
+
+      res.status(200).json({ message: "Ingredient updated successfully!" });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({
+          message:
+            error.message || "An error occurred while updating the ingredient.",
+        });
+    }
+  }
+);
+
+
 
 // Iniciar o servidor
 app.listen(3000, () => {
