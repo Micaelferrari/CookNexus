@@ -407,6 +407,45 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// CRIAR UM USUÁRIO
+app.post("/users", async (req: Request, res: Response): Promise<void> => {
+  const { name_user, sobrenome, age, gender } = req.body;
+
+  const gerarID = generateId();
+
+  if (!name_user || typeof name_user !== "string" || name_user.length > 50) {
+    throw new Error("Invalid name_user");
+  }
+
+  if (!sobrenome || typeof sobrenome !== "string" || sobrenome.length > 50) {
+    throw new Error("Invalid sobrenome");
+  }
+
+  if (typeof age !== "number" || age <= 0) {
+    throw new Error("Invalid age");
+  }
+
+  if (!gender || typeof gender !== "string" || gender.length > 12) {
+    throw new Error("Invalid gender");
+  }
+
+  try {
+    await connection("users").insert({
+      id_user: gerarID,
+      name_user,
+      sobrenome,
+      age,
+      gender,
+    });
+
+    res.status(201).json("User created successfully!");
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ message: error.message || "An unexpected error occurred" });
+  }
+});
+
 
 
 // Iniciar o servidor
