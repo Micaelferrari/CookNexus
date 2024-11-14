@@ -323,7 +323,7 @@ app.patch(
         throw new Error("Ingredient not found.");
       }
 
-      // Fazer teste de funcionamento
+      // Teste realizado, bloco atualizando a quantidade do ingrediente na receita
       await connection("recipe_ingredient")
         .where({ id_recipe, id_ingredient })
         .update({ quantity });
@@ -339,6 +339,49 @@ app.patch(
     }
   }
 );
+
+// Atualizar uma receita
+app.put("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { title, description, prep_time, user_id, modo_preparo } = req.body;
+
+  if (!id) {
+    res.status(400).json({ message: "Recipe ID is required." });
+    return;
+  }
+
+  if (!title || !description || !prep_time || !user_id || !modo_preparo) {
+    res.status(400).json({ message: "All fields are required." });
+    return;
+  }
+
+  try {
+    const recipeExists = await connection("recipes")
+      .where("id_recipe", id)
+      .first();
+
+    if (!recipeExists) {
+      throw new Error("Recipe not found.");
+    }
+
+    await connection("recipes").where("id_recipe", id).update({
+      title,
+      description,
+      prep_time,
+      user_id,
+      modo_preparo,
+    });
+
+    res.status(200).json({ message: "Recipe updated successfully!" });
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({
+        message: "An error occurred while updating the recipe.",
+        error: error.message,
+      });
+  }
+});
 
 
 
