@@ -532,6 +532,34 @@ app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// ATUALIZAR INGREDIENTE
+app.patch(
+  "/ingredients/:id",
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { name_ingredient, type_ingredient } = req.body;
+
+    try {
+      const ingredientExists = await connection("ingredients")
+        .where("id_ingredient", id)
+        .first();
+
+      if (!ingredientExists) {
+        throw new Error("Ingredient not found.");
+      }
+
+      await connection("ingredients")
+        .where("id_ingredient", id)
+        .update({ name_ingredient, type_ingredient });
+      res.status(200).json({ message: "Ingredient updated successfully!" });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ message: error.message || "Error updating ingredient" });
+    }
+  }
+);
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
