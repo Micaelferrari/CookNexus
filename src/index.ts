@@ -330,12 +330,10 @@ app.patch(
 
       res.status(200).json({ message: "Ingredient updated successfully!" });
     } catch (error: any) {
-      res
-        .status(500)
-        .json({
-          message:
-            error.message || "An error occurred while updating the ingredient.",
-        });
+      res.status(500).json({
+        message:
+          error.message || "An error occurred while updating the ingredient.",
+      });
     }
   }
 );
@@ -374,12 +372,10 @@ app.put("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({ message: "Recipe updated successfully!" });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({
-        message: "An error occurred while updating the recipe.",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "An error occurred while updating the recipe.",
+      error: error.message,
+    });
   }
 });
 
@@ -446,7 +442,27 @@ app.post("/users", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// DELETAR UM USUÁRIO
+app.delete("/users/:id", async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
 
+  if (!id) {
+    throw new Error("User ID is required");
+  }
+
+  try {
+    const userExists = await connection("users").where("id_user", id).first();
+
+    if (!userExists) {
+      throw new Error("User not found");
+    }
+
+    await connection("users").where("id_user", id).del();
+    res.status(200).json({ message: "User deleted successfully!" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Error deleting user" });
+  }
+});
 
 // Iniciar o servidor
 app.listen(3000, () => {
