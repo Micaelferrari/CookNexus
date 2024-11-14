@@ -485,6 +485,25 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// ENDPOINTS DOs INGREDIENTES
+
+// BUSCAR TODOS OS INGREDIENTES
+app.get("/ingredients", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const ingredients = await connection("ingredients");
+
+    if (ingredients.length === 0) {
+      throw new Error("No ingredients found");
+    }
+
+    res.status(200).json(ingredients);
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ message: error.message || "Error fetching ingredients" });
+  }
+});
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
