@@ -560,6 +560,36 @@ app.patch(
   }
 );
 
+// DELETAR INGREDIENTE
+app.delete(
+  "/ingredients/:id",
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new Error("Ingredient ID is required");
+    }
+
+    try {
+      const ingredientExists = await connection("ingredients")
+        .where("id_ingredient", id)
+        .first();
+
+      if (!ingredientExists) {
+        throw new Error("Ingredient not found.");
+      }
+
+      await connection("ingredients").where("id_ingredient", id).del();
+      res.status(200).json({ message: "Ingredient deleted successfully!" });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ message: error.message || "Error deleting ingredient" });
+    }
+  }
+);
+
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
