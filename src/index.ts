@@ -504,6 +504,34 @@ app.get("/ingredients", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// CRIAR INGREDIENTE
+app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
+  const { name_ingredient, type_ingredient } = req.body;
+  const gerarID = generateId(); // Chamar a função para gerar um ID
+
+  if (!name_ingredient || typeof name_ingredient !== "string") {
+    throw new Error("Invalid name_ingredient");
+  }
+
+  if (!type_ingredient || typeof type_ingredient !== "string") {
+    throw new Error("Invalid type_ingredient");
+  }
+
+  try {
+    await connection("ingredients").insert({
+      id_ingredient: gerarID,
+      name_ingredient,
+      type_ingredient,
+    });
+
+    res.status(201).json("Ingredient created successfully!");
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ message: error.message || "An unexpected error occurred" });
+  }
+});
+
 // Iniciar o servidor
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
