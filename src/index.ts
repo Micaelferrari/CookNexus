@@ -4,7 +4,7 @@ import cors from "cors";
 import { Request, Response } from "express";
 import { generateId } from "./services/Generated";
 import dotenv from 'dotenv';
-import { Authenticator, AuthenticationData } from "./services/Authenticator";
+import { Authenticator, AuthenticationData } from "./services/Authenticator"
 import bcrypt from "bcryptjs";
 import { User } from "./models/UserType"
 
