@@ -1,3 +1,4 @@
+import { Recipe } from './models/RecipeType';
 import knex, { Knex } from "knex";
 import express, { json } from "express";
 import cors from "cors";
@@ -39,208 +40,191 @@ connection
   });
 
 // BUSCAR TODAS AS RECEITAS 
-
 app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
-
-  //os valores vem como string, se converter antes com o number() não funciona
-  const pageStr = req.query.page;
-  const limitStr = req.query.limit;
-
-  //variáveis pra ordenação
-  /*const sort = req.query.sort
-  const sortBy = req.query.sortBy || 'title';
-
-  if(sort !== 'asc' && sort !== 'desc' && sort !==undefined ){
-    res.status(400).json({ message: "Sort value must be 'asc' or 'desc'." });
-    return;
-  }
-
-  if (typeof sortBy !== 'string') {
-    res.status(400).json({ message: "SortBy value invalid." });
-    return;
-  }
-
-  const validarSortBy = ['title', 'description', 'prep_time'];
-
-  if (!validarSortBy.includes(sortBy)) {
-    res.status(400).json({ message: "Invalid column for sortBy. Value must be title, description or prep_time" });
-    return
-  }
-*/
-
-
-  if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
-    res.status(400).json({ message: "Page must be a positive number." });
-    return
-  }
-
-  if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
-    res.status(400).json({ message: "Limit must be a positive number." });
-    return
-  }
-
-  const page = Number(pageStr) || 1; // Pagina atual sendo 1
-  const limit = Number(limitStr) || 10; // Quantidade de itens por página
-  const offset = (page - 1) * limit; // Fazendo o cálculo do offset
-
-  //console.log(`Page: ${page}, Limit: ${limit}, Offset: ${offset}`); pra teste 
-
   try {
+    const pageStr = req.query.page as string | undefined;
+    const limitStr = req.query.limit as string | undefined;
+    const sort = req.query.sort as string | undefined;
+    const sortBy = (req.query.sortBy as string | undefined) || "title";
+
+    const validarSortBy = ["title", "description", "prep_time"];
+
+    // Validação de ordenação
+    if (sort !== undefined && sort !== "asc" && sort !== "desc") {
+      throw new Error("Sort value must be 'asc' or 'desc'.");
+    }
+
+    if (!validarSortBy.includes(sortBy)) {
+      throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
+    }
+
+    // Validação de paginação
+    if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
+      throw new Error("Page must be a positive number.");
+    }
+
+    if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
+      throw new Error("Limit must be a positive number.");
+    }
+
+    const page = Number(pageStr) || 1;
+    const limit = Number(limitStr) || 10;
+    const offset = (page - 1) * limit;
+
     const recipes = await connection("recipes")
       .select("*")
-      //.orderBy( sortBy, sort)
+      .orderBy(sortBy, sort || "asc")
       .limit(limit)
       .offset(offset);
 
     if (recipes.length === 0) {
-      throw new Error("No recipes found");
+      throw new Error("No recipes found.");
     }
 
-    res.status(200).json(recipes);
-
+    res.status(200).json({ recipes });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: error.message || "An unexpected error occurred" });
+    if (error.message === "No recipes found.") {
+      res.status(404).json({ message: error.message });
+    } else {
+      res.status(400).json({ message: error.message || "An unexpected error occurred." });
+    }
   }
 });
 
 
 // BUSCAR RECEITAS COM TÍTULO ESPECÍFICO
-app.get(
-  "/recipes/:title",
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      // Os valores vêm como string, se converter antes com o Number() não funciona
-      const pageStr = req.query.page;
-      const limitStr = req.query.limit;
+app.get("/recipes/:title", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const pageStr = req.query.page as string | undefined;
+    const limitStr = req.query.limit as string | undefined;
+    const sort = req.query.sort as string | undefined;
+    const sortBy = (req.query.sortBy as string | undefined) || "title";
 
-      // Variáveis para ordenação
-      const sort = req.query.sort;
-      const sortBy = req.query.sortBy || 'title';
+    const validarSortBy = ["title", "description", "prep_time"];
 
-      // Validações de ordenação
-      if (sort !== 'asc' && sort !== 'desc' && sort !== undefined) {
-        throw new Error("Sort value must be 'asc' or 'desc'.");
-      }
+    if (sort !== undefined && sort !== "asc" && sort !== "desc") {
+      throw new Error("Sort value must be 'asc' or 'desc'.");
+    }
 
-      if (typeof sortBy !== 'string') {
-        throw new Error("SortBy value invalid.");
-      }
+    if (!validarSortBy.includes(sortBy)) {
+      throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
+    }
 
-      const validarSortBy = ['title', 'description', 'prep_time'];
-      if (!validarSortBy.includes(sortBy)) {
-        throw new Error("Invalid column for sortBy. Value must be 'title', 'description' or 'prep_time'.");
-      }
+    if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
+      throw new Error("Page must be a positive number.");
+    }
 
-      // Validações de paginação
-      if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
-        throw new Error("Page must be a positive number.");
-      }
+    if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
+      throw new Error("Limit must be a positive number.");
+    }
 
-      if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
-        throw new Error("Limit must be a positive number.");
-      }
+    const page = Number(pageStr) || 1;
+    const limit = Number(limitStr) || 10;
+    const offset = (page - 1) * limit;
 
-      const page = Number(pageStr) || 1; // Página atual sendo 1
-      const limit = Number(limitStr) || 10; // Quantidade de itens por página
-      const offset = (page - 1) * limit; // Cálculo do offset
+    const { title } = req.params;
+    if (!title || title.trim() === "") {
+      throw new Error("Title is required.");
+    }
 
-      const { title } = req.params;
-      if (!title || title.trim() === "") {
-        throw new Error("Title is required.");
-      }
+    const recipes = await connection("recipes")
+      .where("title", "ILIKE", `%${title.trim()}%`)
+      .orderBy(sortBy, sort || "asc")
+      .limit(limit)
+      .offset(offset);
 
-      const recipes = await connection("recipes")
-        .where("title", "ILIKE", `%${title}%`)
-        .orderBy(sortBy, sort)
-        .limit(limit)
-        .offset(offset);
+    if (recipes.length === 0) {
+      throw new Error("No recipes found.");
+    }
 
-      if (recipes.length === 0) {
-        throw new Error("No recipes found.");
-      }
-
-      res.status(200).json({
-        recipes,
-      });
-    } catch (error: any) {
-      if (error.message === "No recipes found.") {
-        res.status(404).json({ message: error.message });
-      } else {
-        res.status(400).json({ message: error.message || "Invalid request." });
-      }
+    res.status(200).json({ recipes });
+  } catch (error: any) {
+    if (error.message === "No recipes found.") {
+      res.status(404).json({ message: error.message });
+    } else {
+      res.status(400).json({ message: error.message || "An unexpected error occurred." });
     }
   }
-);
+});
 
 // DELETAR
-app.delete(
-  "/recipes/:id",
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { id } = req.params;
+app.delete("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
 
-      if (!id) {
-        throw new Error("Recipe ID is required.");
-      }
+    if (!id || typeof id !== "string" || id.trim() === "") {
+      throw new Error("Recipe ID is required and must be a valid string.");
+    }
 
-      const recipe = await connection("recipes").where("id_recipe", id).first();
+    const recipeExists = await connection("recipes")
+      .where("id_recipe", id.trim())
+      .first();
 
-      if (!recipe) {
-        throw new Error("Recipe not found.");
-      }
+    if (!recipeExists) {
+      throw new Error("Recipe not found.");
+    }
 
-      await connection("recipes").where("id_recipe", id).del();
-      res.status(200).json({ message: "Recipe deleted successfully!" });
-    } catch (error: any) {
-      if (error.message === "Recipe ID is required.") {
-        res.status(400).json({ message: error.message });
-      } else if (error.message === "Recipe not found.") {
-        res.status(404).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: error.message || "Error deleting recipe." });
-      }
+    await connection("recipes").where("id_recipe", id.trim()).del();
+
+    res.status(200).json({ message: "Recipe deleted successfully!" });
+  } catch (error: any) {
+    if (error.message === "Recipe not found.") {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === "Recipe ID is required and must be a valid string.") {
+      res.status(400).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: error.message || "Error deleting recipe." });
     }
   }
-);
+});
+
 
 // CRIAR RECEITA
 app.post("/recipes", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { title, description, prep_time, user_id, modo_preparo } = req.body;
+  const { title, description, prep_time, user_id, modo_preparo } = req.body;
 
-    if (!title || !description || !prep_time || !user_id || !modo_preparo) {
-      throw new Error("All fields are required.");
+  try {
+
+    if (!title || typeof title !== "string" || title.trim().length === 0 || title.length > 40) {
+      throw new Error("Invalid title. Title must be a non-empty string with a maximum of 40 characters.");
     }
 
-    const gerarID = generateId();
+    if (!description || typeof description !== "string" || description.trim().length === 0) {
+      throw new Error("Invalid description. Description must be a non-empty string.");
+    }
 
+    if (!prep_time || typeof prep_time !== "string" || prep_time.trim().length === 0) {
+      throw new Error("Invalid prep_time. Prep_time must be a non-empty string.");
+    }
+
+    if (!user_id || typeof user_id !== "string" || user_id.trim().length === 0) {
+      throw new Error("Invalid user_id. User_id must be a valid string.");
+    }
+
+    if (!modo_preparo || typeof modo_preparo !== "string" || modo_preparo.trim().length === 0) {
+      throw new Error("Invalid modo_preparo. Modo_preparo must be a non-empty string.");
+    }
+
+    // usuário existe ?
     const userExists = await connection("users").where("id_user", user_id).first();
-
     if (!userExists) {
       throw new Error("User not found.");
     }
 
-    await connection("recipes").insert({
-      id_recipe: gerarID,
-      title,
-      description,
-      prep_time,
-      user_id,
+    const newRecipe: Recipe = {
+      id: generateId(),
+      titulo: title,
+      descricao: description,
+      tempo_preparo: prep_time,
+      id_usuario: user_id,
       modo_preparo,
-    });
+    };
+
+    await connection("recipes").insert({newRecipe});
 
     res.status(201).json({ message: "Recipe created successfully!" });
-
   } catch (error: any) {
-    if (error.message === "All fields are required.") {
-      res.status(400).json({ message: error.message });
-    } else if (error.message === "User not found.") {
-      res.status(404).json({ message: error.message });
-    } else {
-      res.status(500).json({ message: error.message || "An unexpected error occurred." });
-    }
+    res.status(400).json({ message: error.message || "An unexpected error occurred." });
   }
 });
 
@@ -396,8 +380,7 @@ app.patch(
 
 
 //DELETAR INGREDIENTE DE UMA RECEITA 
-app.delete(
-  "/recipes/:id_recipe/ingredients/:id_ingredient",
+app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { id_recipe, id_ingredient } = req.params;
@@ -410,13 +393,13 @@ app.delete(
         .where("id_recipe", id_recipe)
         .first();
 
-      const ingredientExists = await connection("ingredients")
-        .where("id_ingredient", id_ingredient)
-        .first();
-
       if (!recipeExists) {
         throw new Error("Recipe not found.");
       }
+
+      const ingredientExists = await connection("ingredients")
+        .where("id_ingredient", id_ingredient)
+        .first();
 
       if (!ingredientExists) {
         throw new Error("Ingredient not found.");
@@ -434,8 +417,9 @@ app.delete(
         .where({ id_recipe, id_ingredient })
         .del();
 
-      res.status(200).json({ message: "Ingredient removed from recipe successfully!" });
-
+      res
+        .status(200)
+        .json({ message: "Ingredient removed from recipe successfully!" });
     } catch (error: any) {
       if (error.message === "Recipe ID and Ingredient ID are required.") {
         res.status(400).json({ message: error.message });
@@ -455,52 +439,55 @@ app.delete(
 );
 
 
-// ENDPOINTS DO USERS// tá bugando o sort
+// ENDPOINTS DO USERS
 
 // BUSCAR TODOS OS USUÁRIOS
 app.get("/users", async (req: Request, res: Response): Promise<void> => {
-
-  const page = Number(req.query.page) || 1; // Pagina atual
-  const limit = Number(req.query.limit) || 10; // Número de itens por pagina
-  const offset = (page - 1) * limit; // Calculo do offset
-
-  //variáveis pra ordenação
-  const sort = req.query.sort
-  let sortBy = req.query.sortBy?.toString().trim() || 'name_user';
-
-  if (sort !== 'asc' && sort !== 'desc' && sort !== undefined) {
-    res.status(400).json({ message: "Sort value must be 'asc' or 'desc'." });
-    return;
-  }
-
-  if (typeof sortBy !== 'string' || sortBy === undefined) {
-    res.status(400).json({ message: "SortBy value invalid." });
-    return;
-  }
-
-  const validarSortBy = ['name_user', 'sobrenome', 'age'];
-
-  if (!validarSortBy.includes(sortBy)) {
-    res.status(400).json({ message: "Invalid column for sortBy. Value must be name_user, sobrenome or age" });
-    return
-  }
-
   try {
+    const page = Number(req.query.page) || 1; // Página atual
+    const limit = Number(req.query.limit) || 10; // Número de itens por página
+    const offset = (page - 1) * limit; // Cálculo do offset
+
+    const sort = req.query.sort as string | undefined;
+    const sortBy = (req.query.sortBy as string | undefined)?.trim() || "name_user";
+
+    if (isNaN(page) || page < 1) {
+      throw new Error("Page must be a positive number.");
+    }
+
+    if (isNaN(limit) || limit < 1) {
+      throw new Error("Limit must be a positive number.");
+    }
+
+    if (sort && sort !== "asc" && sort !== "desc") {
+      throw new Error("Sort value must be 'asc' or 'desc'.");
+    }
+
+    const validarSortBy = ["name_user", "sobrenome", "age"];
+    if (!validarSortBy.includes(sortBy)) {
+      throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
+    }
+
     const users = await connection("users")
-      .select("*") // Seleciona todos os campos da tabela users
-      .orderBy(sortBy, sort || 'asc')
+      .select("*")
+      .orderBy(sortBy, sort || "asc")
       .limit(limit)
       .offset(offset);
 
     if (users.length === 0) {
-      throw new Error("No users found");
+      throw new Error("No users found.");
     }
 
     res.status(200).json(users);
   } catch (error: any) {
-    res.status(500).json({ message: error.message || "Error fetching users" });
+    if (error.message === "No users found.") {
+      res.status(404).json({ message: error.message });
+    } else {
+      res.status(400).json({ message: error.message || "Error fetching users." });
+    }
   }
 });
+
 
 // CRIAR UM USUÁRIO
 app.post("/users", async (req: Request, res: Response): Promise<void> => {
