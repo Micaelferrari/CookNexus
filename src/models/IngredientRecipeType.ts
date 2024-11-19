@@ -1,6 +1,6 @@
 export type RecipeIngredient = {
-    id_receita: number;
-    id_ingrediente: number;
-    quantidade: number;
-    nome_ingrediente: string;
+    id_ricepe: number;
+    id_ingredient: number;
+    quantity: number;
+    name_ingrediente: string;
 };

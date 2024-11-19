@@ -1,7 +1,7 @@
 export  type Ingredient = {
-    id: number;
-    nome: string;
-    tipo: string;
+    id: string;
+    name: string;
+    type: string;
 };
 
 

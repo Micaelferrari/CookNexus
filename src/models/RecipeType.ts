@@ -1,8 +1,8 @@
 export type Recipe = {
-    id: string;
-    titulo: string;
-    descricao: string;
-    tempo_preparo: string;
-    id_usuario: string;
+    id_recipe: string;
+    title: string;
+    description: string;
+    prep_time: string;
+    user_id: string;
     modo_preparo: string;
 };

@@ -91,7 +91,6 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-
 // BUSCAR RECEITAS COM TÍTULO ESPECÍFICO
 app.get("/recipes/:title", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -178,7 +177,6 @@ app.delete("/recipes/:id", async (req: Request, res: Response): Promise<void> =>
   }
 });
 
-
 // CRIAR RECEITA
 app.post("/recipes", async (req: Request, res: Response): Promise<void> => {
   const { title, description, prep_time, user_id, modo_preparo } = req.body;
@@ -212,22 +210,22 @@ app.post("/recipes", async (req: Request, res: Response): Promise<void> => {
     }
 
     const newRecipe: Recipe = {
-      id: generateId(),
-      titulo: title,
-      descricao: description,
-      tempo_preparo: prep_time,
-      id_usuario: user_id,
+      id_recipe: generateId(), 
+      title,
+      description,
+      prep_time,
+      user_id,
       modo_preparo,
     };
-
-    await connection("recipes").insert({newRecipe});
+  
+    
+    await connection("recipes").insert(newRecipe);
 
     res.status(201).json({ message: "Recipe created successfully!" });
   } catch (error: any) {
     res.status(400).json({ message: error.message || "An unexpected error occurred." });
   }
 });
-
 
 // BUSCAR POR RECEITA QUE TENHA UM INGREDIENTE ESPECÍFICO
 app.get(
@@ -378,7 +376,6 @@ app.patch(
   }
 );
 
-
 //DELETAR INGREDIENTE DE UMA RECEITA 
 app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
   async (req: Request, res: Response): Promise<void> => {
@@ -438,15 +435,14 @@ app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
   }
 );
 
-
 // ENDPOINTS DO USERS
 
 // BUSCAR TODOS OS USUÁRIOS
 app.get("/users", async (req: Request, res: Response): Promise<void> => {
   try {
-    const page = Number(req.query.page) || 1; // Página atual
-    const limit = Number(req.query.limit) || 10; // Número de itens por página
-    const offset = (page - 1) * limit; // Cálculo do offset
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
     const sort = req.query.sort as string | undefined;
     const sortBy = (req.query.sortBy as string | undefined)?.trim() || "name_user";
@@ -488,15 +484,12 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-
 // CRIAR UM USUÁRIO
 app.post("/users", async (req: Request, res: Response): Promise<void> => {
   const { name_user, sobrenome, age, gender, email, password } = req.body;
 
-
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-
 
     const newUser: User = {
       id_user: generateId(),
@@ -545,14 +538,12 @@ app.post("/users", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-
-
 // DELETAR UM USUÁRIO
 app.delete("/users/:id", async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   try {
-    if (!id || typeof id !== "string") {
+    if (!id || typeof id !== "string" || id.trim() === "") {
       throw new Error("User ID is required.");
     }
 
@@ -582,15 +573,15 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
   const { name_user, sobrenome, age, gender } = req.body;
 
   try {
-    if (!id || typeof id !== "string") {
+    if (!id || typeof id !== "string" || id.trim() === "") {
       throw new Error("User ID is required.");
     }
 
-    if (!name_user || typeof name_user !== "string" || name_user.length > 50) {
+    if (!name_user || typeof name_user !== "string" || name_user.trim().length === 0 || name_user.length > 50) {
       throw new Error("Invalid name_user.");
     }
 
-    if (!sobrenome || typeof sobrenome !== "string" || sobrenome.length > 50) {
+    if (!sobrenome || typeof sobrenome !== "string" || sobrenome.trim().length === 0 || sobrenome.length > 50) {
       throw new Error("Invalid sobrenome.");
     }
 
@@ -598,31 +589,29 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
       throw new Error("Invalid age.");
     }
 
-    if (!gender || typeof gender !== "string" || gender.length > 12) {
+    if (!gender || typeof gender !== "string" || gender.trim().length === 0 || gender.length > 12) {
       throw new Error("Invalid gender.");
     }
 
-    const userExists = await connection("users").where("id_user", id).first();
+    const userExists = await connection("users").where("id_user", id.trim()).first();
 
     if (!userExists) {
       throw new Error("User not found.");
     }
 
     await connection("users")
-      .where("id_user", id)
+      .where("id_user", id.trim())
       .update({ name_user, sobrenome, age, gender });
 
     res.status(200).json({ message: "User updated successfully!" });
   } catch (error: any) {
     if (error.message === "User ID is required.") {
       res.status(400).json({ message: error.message });
-    } else if (error.message === "Invalid name_user.") {
-      res.status(400).json({ message: error.message });
-    } else if (error.message === "Invalid sobrenome.") {
-      res.status(400).json({ message: error.message });
-    } else if (error.message === "Invalid age.") {
-      res.status(400).json({ message: error.message });
-    } else if (error.message === "Invalid gender.") {
+    } else if (
+      [
+        "Invalid name_user.", "Invalid sobrenome.", "Invalid age.", "Invalid gender.",
+      ].includes(error.message)
+    ) {
       res.status(400).json({ message: error.message });
     } else if (error.message === "User not found.") {
       res.status(404).json({ message: error.message });
@@ -631,7 +620,6 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
     }
   }
 });
-
 
 // ENDPOINTS DO INGREDIENTS
 
@@ -661,25 +649,22 @@ app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
   const gerarID = generateId();
 
   try {
-    // Validações dentro do bloco try
-    if (!name_ingredient || typeof name_ingredient !== "string" || name_ingredient.trim() === "") {
+    if (!name_ingredient || typeof name_ingredient !== "string" || name_ingredient.trim().length === 0) {
       throw new Error("Invalid name_ingredient. It must be a non-empty string.");
     }
 
-    if (!type_ingredient || typeof type_ingredient !== "string" || type_ingredient.trim() === "") {
+    if (!type_ingredient || typeof type_ingredient !== "string" || type_ingredient.trim().length === 0) {
       throw new Error("Invalid type_ingredient. It must be a non-empty string.");
     }
 
-    // Inserção no banco de dados
     await connection("ingredients").insert({
       id_ingredient: gerarID,
-      name_ingredient,
-      type_ingredient,
+      name_ingredient: name_ingredient.trim(),
+      type_ingredient: type_ingredient.trim(),
     });
 
     res.status(201).json({ message: "Ingredient created successfully!" });
   } catch (error: any) {
-    // Tratamento explícito de erros
     if (error.message.includes("Invalid name_ingredient")) {
       res.status(400).json({ message: error.message });
     } else if (error.message.includes("Invalid type_ingredient")) {
@@ -691,7 +676,6 @@ app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
     }
   }
 });
-
 
 // ATUALIZAR INGREDIENTE
 app.patch(
@@ -747,8 +731,8 @@ app.delete(
     const { id } = req.params;
 
     try {
-      if (!id) {
-        throw new Error("Ingredient ID is required");
+      if (!id || typeof id !== "string" || id.trim() === "") {
+        throw new Error("Ingredient ID is required.");
       }
 
       const ingredientExists = await connection("ingredients")
@@ -761,6 +745,7 @@ app.delete(
 
       await connection("ingredients").where("id_ingredient", id).del();
       res.status(200).json({ message: "Ingredient deleted successfully!" });
+
     } catch (error: any) {
       if (error.message === "Ingredient ID is required") {
         res.status(400).json({ message: error.message });
@@ -773,40 +758,52 @@ app.delete(
   }
 );
 
-
 app.post("/login", async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
 
   try {
-    if (!email || !password) {
-      throw new Error("Email and password are required.");
+    if (!email || typeof email !== "string" || email.trim() === "") {
+      throw new Error("Email is required and must be a valid string.");
     }
 
-    const user = await connection("users").where("email", email).first();
+    if (!password || typeof password !== "string" || password.trim() === "") {
+      throw new Error("Password is required and must be a valid string.");
+    }
+
+    const user = await connection("users").where("email", email.trim()).first();
 
     if (!user) {
-      res.status(404)
+      res.status(404);
       throw new Error("User not found.");
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
+      res.status(401);
       throw new Error("Invalid password.");
     }
 
     const payload: AuthenticationData = {
-      id: user.id_user
-    }
-    const token = authenticator.generateToken(payload)
+      id: user.id_user,
+    };
+    const token = authenticator.generateToken(payload);
 
     res.status(200).json({ message: "Login successful", token });
-
   } catch (error: any) {
-    res.json({ message: error.message });
+    if (error.message === "Email is required and must be a valid string.") {
+      res.status(400).json({ message: error.message });
+    } else if (error.message === "Password is required and must be a valid string.") {
+      res.status(400).json({ message: error.message });
+    } else if (error.message === "User not found.") {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === "Invalid password.") {
+      res.status(401).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: "An unexpected error occurred." });
+    }
   }
 });
-
 
 // Iniciar o servidor
 app.listen(3000, () => {
