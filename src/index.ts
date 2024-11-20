@@ -1,13 +1,13 @@
-import { Recipe } from './models/RecipeType';
+import { Recipe } from "./models/RecipeType";
 import knex, { Knex } from "knex";
 import express, { json } from "express";
 import cors from "cors";
 import { Request, Response } from "express";
-import { generateId } from "./services/Generated";
-import dotenv from 'dotenv';
-import { Authenticator, AuthenticationData } from "./services/Authenticator"
+import { generateId } from "./services/generated";
+import dotenv from "dotenv";
+import { Authenticator, AuthenticationData } from "./services/Authenticator";
 import bcrypt from "bcryptjs";
-import { User } from "./models/UserType"
+import { User } from "./models/UserType";
 
 const authenticator = new Authenticator();
 
@@ -39,7 +39,7 @@ connection
     console.error("Erro ao conectar ao PostgreSQL:", err);
   });
 
-// BUSCAR TODAS AS RECEITAS 
+// BUSCAR TODAS AS RECEITAS
 app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
   try {
     const pageStr = req.query.page as string | undefined;
@@ -55,15 +55,25 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
     }
 
     if (!validarSortBy.includes(sortBy)) {
-      throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
+      throw new Error(
+        `Invalid column for sortBy. Value must be one of: ${validarSortBy.join(
+          ", "
+        )}.`
+      );
     }
 
     // Validação de paginação
-    if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
+    if (
+      pageStr !== undefined &&
+      (isNaN(Number(pageStr)) || Number(pageStr) < 1)
+    ) {
       throw new Error("Page must be a positive number.");
     }
 
-    if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
+    if (
+      limitStr !== undefined &&
+      (isNaN(Number(limitStr)) || Number(limitStr) < 1)
+    ) {
       throw new Error("Limit must be a positive number.");
     }
 
@@ -86,144 +96,227 @@ app.get("/recipes", async (req: Request, res: Response): Promise<void> => {
     if (error.message === "No recipes found.") {
       res.status(404).json({ message: error.message });
     } else {
-      res.status(400).json({ message: error.message || "An unexpected error occurred." });
+      res
+        .status(400)
+        .json({ message: error.message || "An unexpected error occurred." });
     }
   }
 });
 
 // BUSCAR RECEITAS COM TÍTULO ESPECÍFICO
-app.get("/recipes/:title", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const pageStr = req.query.page as string | undefined;
-    const limitStr = req.query.limit as string | undefined;
-    const sort = req.query.sort as string | undefined;
-    const sortBy = (req.query.sortBy as string | undefined) || "title";
+app.get(
+  "/recipes/:title",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const pageStr = req.query.page as string | undefined;
+      const limitStr = req.query.limit as string | undefined;
+      const sort = req.query.sort as string | undefined;
+      const sortBy = (req.query.sortBy as string | undefined) || "title";
 
-    const validarSortBy = ["title", "description", "prep_time"];
+      const validarSortBy = ["title", "description", "prep_time"];
 
-    if (sort !== undefined && sort !== "asc" && sort !== "desc") {
-      throw new Error("Sort value must be 'asc' or 'desc'.");
-    }
+      if (sort !== undefined && sort !== "asc" && sort !== "desc") {
+        throw new Error("Sort value must be 'asc' or 'desc'.");
+      }
 
-    if (!validarSortBy.includes(sortBy)) {
-      throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
-    }
+      if (!validarSortBy.includes(sortBy)) {
+        throw new Error(
+          `Invalid column for sortBy. Value must be one of: ${validarSortBy.join(
+            ", "
+          )}.`
+        );
+      }
 
-    if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
-      throw new Error("Page must be a positive number.");
-    }
+      if (
+        pageStr !== undefined &&
+        (isNaN(Number(pageStr)) || Number(pageStr) < 1)
+      ) {
+        throw new Error("Page must be a positive number.");
+      }
 
-    if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
-      throw new Error("Limit must be a positive number.");
-    }
+      if (
+        limitStr !== undefined &&
+        (isNaN(Number(limitStr)) || Number(limitStr) < 1)
+      ) {
+        throw new Error("Limit must be a positive number.");
+      }
 
-    const page = Number(pageStr) || 1;
-    const limit = Number(limitStr) || 10;
-    const offset = (page - 1) * limit;
+      const page = Number(pageStr) || 1;
+      const limit = Number(limitStr) || 10;
+      const offset = (page - 1) * limit;
 
-    const { title } = req.params;
-    if (!title || title.trim() === "") {
-      throw new Error("Title is required.");
-    }
+      const { title } = req.params;
+      if (!title || title.trim() === "") {
+        throw new Error("Title is required.");
+      }
 
-    const recipes = await connection("recipes")
-      .where("title", "ILIKE", `%${title.trim()}%`)
-      .orderBy(sortBy, sort || "asc")
-      .limit(limit)
-      .offset(offset);
+      const recipes = await connection("recipes")
+        .where("title", "ILIKE", `%${title.trim()}%`)
+        .orderBy(sortBy, sort || "asc")
+        .limit(limit)
+        .offset(offset);
 
-    if (recipes.length === 0) {
-      throw new Error("No recipes found.");
-    }
+      if (recipes.length === 0) {
+        throw new Error("No recipes found.");
+      }
 
-    res.status(200).json({ recipes });
-  } catch (error: any) {
-    if (error.message === "No recipes found.") {
-      res.status(404).json({ message: error.message });
-    } else {
-      res.status(400).json({ message: error.message || "An unexpected error occurred." });
-    }
-  }
-});
-
-// DELETAR
-app.delete("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-
-    if (!id || typeof id !== "string" || id.trim() === "") {
-      throw new Error("Recipe ID is required and must be a valid string.");
-    }
-
-    const recipeExists = await connection("recipes")
-      .where("id_recipe", id.trim())
-      .first();
-
-    if (!recipeExists) {
-      throw new Error("Recipe not found.");
-    }
-
-    await connection("recipes").where("id_recipe", id.trim()).del();
-
-    res.status(200).json({ message: "Recipe deleted successfully!" });
-  } catch (error: any) {
-    if (error.message === "Recipe not found.") {
-      res.status(404).json({ message: error.message });
-    } else if (error.message === "Recipe ID is required and must be a valid string.") {
-      res.status(400).json({ message: error.message });
-    } else {
-      res.status(500).json({ message: error.message || "Error deleting recipe." });
+      res.status(200).json({ recipes });
+    } catch (error: any) {
+      if (error.message === "No recipes found.") {
+        res.status(404).json({ message: error.message });
+      } else {
+        res
+          .status(400)
+          .json({ message: error.message || "An unexpected error occurred." });
+      }
     }
   }
-});
+);
+
+// DELETAR RECEITA
+app.delete(
+  "/recipes/:id",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new Error("Authorization token is required.");
+      }
+
+      const authenticator = new Authenticator();
+      const tokenData = authenticator.getTokenData(token);
+
+      if (!tokenData || !tokenData.id) {
+        throw new Error("Invalid or missing token.");
+      }
+
+      const userId = tokenData.id;
+
+      // Verificar se o ID da receita foi fornecido
+      if (!id || typeof id !== "string" || id.trim() === "") {
+        throw new Error("Recipe ID is required and must be a valid string.");
+      }
+
+      // Verificar se a receita existe
+      const recipe = await connection("recipes")
+        .where("id_recipe", id.trim())
+        .first();
+
+      if (!recipe) {
+        throw new Error("Recipe not found.");
+      }
+
+      // Verificar se o usuário é o dono da receita
+      if (recipe.user_id !== userId) {
+        throw new Error("You are not authorized to delete this recipe.");
+      }
+
+      // Excluir a receita
+      await connection("recipes").where("id_recipe", id.trim()).del();
+
+      res.status(200).json({ message: "Recipe deleted successfully!" });
+    } catch (error: any) {
+      if (error.message === "Recipe not found.") {
+        res.status(404).json({ message: error.message });
+      } else if (
+        error.message === "Recipe ID is required and must be a valid string."
+      ) {
+        res.status(400).json({ message: error.message });
+      } else if (
+        error.message === "You are not authorized to delete this recipe."
+      ) {
+        res.status(403).json({ message: error.message });
+      } else if (error.message === "Authorization token is required.") {
+        res.status(401).json({ message: error.message });
+      } else {
+        res
+          .status(500)
+          .json({ message: error.message || "Error deleting recipe." });
+      }
+    }
+  }
+);
 
 // CRIAR RECEITA
 app.post("/recipes", async (req: Request, res: Response): Promise<void> => {
   const { title, description, prep_time, user_id, modo_preparo } = req.body;
 
   try {
-
-    if (!title || typeof title !== "string" || title.trim().length === 0 || title.length > 40) {
-      throw new Error("Invalid title. Title must be a non-empty string with a maximum of 40 characters.");
+    if (
+      !title ||
+      typeof title !== "string" ||
+      title.trim().length === 0 ||
+      title.length > 40
+    ) {
+      throw new Error(
+        "Invalid title. Title must be a non-empty string with a maximum of 40 characters."
+      );
     }
 
-    if (!description || typeof description !== "string" || description.trim().length === 0) {
-      throw new Error("Invalid description. Description must be a non-empty string.");
+    if (
+      !description ||
+      typeof description !== "string" ||
+      description.trim().length === 0
+    ) {
+      throw new Error(
+        "Invalid description. Description must be a non-empty string."
+      );
     }
 
-    if (!prep_time || typeof prep_time !== "string" || prep_time.trim().length === 0) {
-      throw new Error("Invalid prep_time. Prep_time must be a non-empty string.");
+    if (
+      !prep_time ||
+      typeof prep_time !== "string" ||
+      prep_time.trim().length === 0
+    ) {
+      throw new Error(
+        "Invalid prep_time. Prep_time must be a non-empty string."
+      );
     }
 
-    if (!user_id || typeof user_id !== "string" || user_id.trim().length === 0) {
+    if (
+      !user_id ||
+      typeof user_id !== "string" ||
+      user_id.trim().length === 0
+    ) {
       throw new Error("Invalid user_id. User_id must be a valid string.");
     }
 
-    if (!modo_preparo || typeof modo_preparo !== "string" || modo_preparo.trim().length === 0) {
-      throw new Error("Invalid modo_preparo. Modo_preparo must be a non-empty string.");
+    if (
+      !modo_preparo ||
+      typeof modo_preparo !== "string" ||
+      modo_preparo.trim().length === 0
+    ) {
+      throw new Error(
+        "Invalid modo_preparo. Modo_preparo must be a non-empty string."
+      );
     }
 
     // usuário existe ?
-    const userExists = await connection("users").where("id_user", user_id).first();
+    const userExists = await connection("users")
+      .where("id_user", user_id)
+      .first();
     if (!userExists) {
       throw new Error("User not found.");
     }
 
     const newRecipe: Recipe = {
-      id_recipe: generateId(), 
+      id_recipe: generateId(),
       title,
       description,
       prep_time,
       user_id,
       modo_preparo,
     };
-  
-    
+
     await connection("recipes").insert(newRecipe);
 
     res.status(201).json({ message: "Recipe created successfully!" });
   } catch (error: any) {
-    res.status(400).json({ message: error.message || "An unexpected error occurred." });
+    res
+      .status(400)
+      .json({ message: error.message || "An unexpected error occurred." });
   }
 });
 
@@ -236,11 +329,17 @@ app.get(
       const pageStr = req.query.page;
       const limitStr = req.query.limit;
 
-      if (pageStr !== undefined && (isNaN(Number(pageStr)) || Number(pageStr) < 1)) {
+      if (
+        pageStr !== undefined &&
+        (isNaN(Number(pageStr)) || Number(pageStr) < 1)
+      ) {
         throw new Error("Page must be a positive number.");
       }
 
-      if (limitStr !== undefined && (isNaN(Number(limitStr)) || Number(limitStr) < 1)) {
+      if (
+        limitStr !== undefined &&
+        (isNaN(Number(limitStr)) || Number(limitStr) < 1)
+      ) {
         throw new Error("Limit must be a positive number.");
       }
 
@@ -254,7 +353,11 @@ app.get(
 
       const recipes = await connection("recipe_ingredient")
         .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
-        .join("ingredients", "recipe_ingredient.id_ingredient", "ingredients.id_ingredient")
+        .join(
+          "ingredients",
+          "recipe_ingredient.id_ingredient",
+          "ingredients.id_ingredient"
+        )
         .where("ingredients.name_ingredient", "ILIKE", `%${ingredient}%`)
         .select("recipes.*")
         .limit(limit)
@@ -265,23 +368,30 @@ app.get(
       }
 
       res.status(200).json({
-        recipes
+        recipes,
       });
     } catch (error: any) {
-      if (error.message === "Page must be a positive number." || error.message === "Limit must be a positive number.") {
+      if (
+        error.message === "Page must be a positive number." ||
+        error.message === "Limit must be a positive number."
+      ) {
         res.status(400).json({ message: error.message });
       } else if (error.message === "Invalid ingredient.") {
         res.status(400).json({ message: error.message });
-      } else if (error.message === "No recipes found with the specified ingredient.") {
+      } else if (
+        error.message === "No recipes found with the specified ingredient."
+      ) {
         res.status(404).json({ message: error.message });
       } else {
-        res.status(500).json({ message: error.message || "Error fetching recipes by ingredient" });
+        res.status(500).json({
+          message: error.message || "Error fetching recipes by ingredient",
+        });
       }
     }
   }
 );
 
-//BUSCAR RECEITA DE UM USUÁRIO ESPECÍFICO 
+//BUSCAR RECEITA DE UM USUÁRIO ESPECÍFICO
 app.get("/recipes/users/:username", async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
@@ -310,9 +420,8 @@ app.get("/recipes/users/:username", async (req: Request, res: Response) => {
     }
 
     res.status(200).json({
-      recipes
+      recipes,
     });
-
   } catch (error: any) {
     if (error.message === "Invalid username parameter.") {
       res.status(400).json({ message: error.message });
@@ -321,7 +430,9 @@ app.get("/recipes/users/:username", async (req: Request, res: Response) => {
     } else if (error.message === "No recipes found for this user.") {
       res.status(404).json({ message: error.message });
     } else {
-      res.status(500).json({ message: error.message || "Error fetching recipes for user" });
+      res
+        .status(500)
+        .json({ message: error.message || "Error fetching recipes for user" });
     }
   }
 });
@@ -334,66 +445,129 @@ app.patch(
       const { id_recipe, id_ingredient } = req.params;
       const { quantity } = req.body;
 
+      // Recuperar o token do cabeçalho de autorização
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new Error("Authorization token is required.");
+      }
+
+      // Decodificar o token para obter o id_user
+      const authenticator = new Authenticator();
+      const tokenData = authenticator.getTokenData(token);
+
+      if (!tokenData || !tokenData.id) {
+        throw new Error("Invalid or missing token.");
+      }
+
+      const userId = tokenData.id;
+
+      // Validar os IDs da receita e do ingrediente
       if (!id_recipe || !id_ingredient) {
         throw new Error("Recipe ID and Ingredient ID are required.");
       }
 
-      const recipeExists = await connection("recipes")
+      // Verificar se a receita existe e pertence ao usuário autenticado
+      const recipe = await connection("recipes")
         .where("id_recipe", id_recipe)
         .first();
 
+      if (!recipe) {
+        throw new Error("Recipe not found.");
+      }
+
+      if (recipe.user_id !== userId) {
+        throw new Error(
+          "You are not authorized to update ingredients for this recipe."
+        );
+      }
+
+      // Verificar se o ingrediente existe
       const ingredientExists = await connection("ingredients")
         .where("id_ingredient", id_ingredient)
         .first();
-
-      if (!recipeExists) {
-        throw new Error("Recipe not found.");
-      }
 
       if (!ingredientExists) {
         throw new Error("Ingredient not found.");
       }
 
+      // Atualizar a quantidade do ingrediente
       await connection("recipe_ingredient")
         .where({ id_recipe, id_ingredient })
         .update({ quantity });
 
       res.status(200).json({ message: "Ingredient updated successfully!" });
-
     } catch (error: any) {
-      if (error.message === "Recipe ID and Ingredient ID are required.") {
+      if (error.message === "Authorization token is required.") {
+        res.status(401).json({ message: error.message });
+      } else if (error.message === "Invalid or missing token.") {
+        res.status(403).json({ message: error.message });
+      } else if (
+        error.message === "Recipe ID and Ingredient ID are required."
+      ) {
         res.status(400).json({ message: error.message });
       } else if (error.message === "Recipe not found.") {
         res.status(404).json({ message: error.message });
       } else if (error.message === "Ingredient not found.") {
         res.status(404).json({ message: error.message });
+      } else if (
+        error.message ===
+        "You are not authorized to update ingredients for this recipe."
+      ) {
+        res.status(403).json({ message: error.message });
       } else {
         res.status(500).json({
-          message: error.message || " error occurred while updating the ingredient.",
+          message:
+            error.message || "Error occurred while updating the ingredient.",
         });
       }
     }
   }
 );
 
-//DELETAR INGREDIENTE DE UMA RECEITA 
-app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
+//DELETAR INGREDIENTE DE UMA RECEITA
+app.delete(
+  "/recipes/:id_recipe/ingredients/:id_ingredient",
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { id_recipe, id_ingredient } = req.params;
 
+      // Recuperar o token do cabeçalho de autorização
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new Error("Authorization token is required.");
+      }
+
+      // Decodificar o token para obter o id_user
+      const authenticator = new Authenticator();
+      const tokenData = authenticator.getTokenData(token);
+
+      if (!tokenData || !tokenData.id) {
+        throw new Error("Invalid or missing token.");
+      }
+
+      const userId = tokenData.id;
+
+      // Validar os IDs da receita e do ingrediente
       if (!id_recipe || !id_ingredient) {
         throw new Error("Recipe ID and Ingredient ID are required.");
       }
 
-      const recipeExists = await connection("recipes")
+      // Verificar se a receita existe e pertence ao usuário autenticado
+      const recipe = await connection("recipes")
         .where("id_recipe", id_recipe)
         .first();
 
-      if (!recipeExists) {
+      if (!recipe) {
         throw new Error("Recipe not found.");
       }
 
+      if (recipe.user_id !== userId) {
+        throw new Error(
+          "You are not authorized to remove ingredients from this recipe."
+        );
+      }
+
+      // Verificar se o ingrediente existe
       const ingredientExists = await connection("ingredients")
         .where("id_ingredient", id_ingredient)
         .first();
@@ -402,6 +576,7 @@ app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
         throw new Error("Ingredient not found.");
       }
 
+      // Verificar se o ingrediente está associado à receita
       const recipeIngredientExists = await connection("recipe_ingredient")
         .where({ id_recipe, id_ingredient })
         .first();
@@ -410,6 +585,7 @@ app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
         throw new Error("Ingredient is not associated with this recipe.");
       }
 
+      // Remover o ingrediente da receita
       await connection("recipe_ingredient")
         .where({ id_recipe, id_ingredient })
         .del();
@@ -418,17 +594,32 @@ app.delete("/recipes/:id_recipe/ingredients/:id_ingredient",
         .status(200)
         .json({ message: "Ingredient removed from recipe successfully!" });
     } catch (error: any) {
-      if (error.message === "Recipe ID and Ingredient ID are required.") {
+      if (error.message === "Authorization token is required.") {
+        res.status(401).json({ message: error.message });
+      } else if (error.message === "Invalid or missing token.") {
+        res.status(403).json({ message: error.message });
+      } else if (
+        error.message === "Recipe ID and Ingredient ID are required."
+      ) {
         res.status(400).json({ message: error.message });
       } else if (error.message === "Recipe not found.") {
         res.status(404).json({ message: error.message });
       } else if (error.message === "Ingredient not found.") {
         res.status(404).json({ message: error.message });
-      } else if (error.message === "Ingredient is not associated with this recipe.") {
+      } else if (
+        error.message === "Ingredient is not associated with this recipe."
+      ) {
         res.status(404).json({ message: error.message });
+      } else if (
+        error.message ===
+        "You are not authorized to remove ingredients from this recipe."
+      ) {
+        res.status(403).json({ message: error.message });
       } else {
         res.status(500).json({
-          message: error.message || "An error occurred while removing the ingredient from the recipe.",
+          message:
+            error.message ||
+            "An error occurred while removing the ingredient from the recipe.",
         });
       }
     }
@@ -445,7 +636,8 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
     const offset = (page - 1) * limit;
 
     const sort = req.query.sort as string | undefined;
-    const sortBy = (req.query.sortBy as string | undefined)?.trim() || "name_user";
+    const sortBy =
+      (req.query.sortBy as string | undefined)?.trim() || "name_user";
 
     if (isNaN(page) || page < 1) {
       throw new Error("Page must be a positive number.");
@@ -461,7 +653,11 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
 
     const validarSortBy = ["name_user", "sobrenome", "age"];
     if (!validarSortBy.includes(sortBy)) {
-      throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
+      throw new Error(
+        `Invalid column for sortBy. Value must be one of: ${validarSortBy.join(
+          ", "
+        )}.`
+      );
     }
 
     const users = await connection("users")
@@ -479,7 +675,9 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
     if (error.message === "No users found.") {
       res.status(404).json({ message: error.message });
     } else {
-      res.status(400).json({ message: error.message || "Error fetching users." });
+      res
+        .status(400)
+        .json({ message: error.message || "Error fetching users." });
     }
   }
 });
@@ -498,13 +696,15 @@ app.post("/users", async (req: Request, res: Response): Promise<void> => {
       age,
       gender,
       email,
-      password: hashedPassword
+      password: hashedPassword,
     };
 
-    const existUser = await connection('users').where('email', newUser.email).first()
+    const existUser = await connection("users")
+      .where("email", newUser.email)
+      .first();
 
-    if(existUser){
-      throw new Error("User Alredy exist!")
+    if (existUser) {
+      throw new Error("User Alredy exist!");
     }
 
     if (!newUser.name_user || newUser.name_user.length > 50) {
@@ -534,7 +734,9 @@ app.post("/users", async (req: Request, res: Response): Promise<void> => {
     await connection("users").insert(newUser);
     res.status(201).json({ message: "User created successfully!" });
   } catch (error: any) {
-    res.status(400).json({ message: error.message || "An unexpected error occurred" });
+    res
+      .status(400)
+      .json({ message: error.message || "An unexpected error occurred" });
   }
 });
 
@@ -543,29 +745,64 @@ app.delete("/users/:id", async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   try {
+    // Recuperar o token do cabeçalho de autorização
+    const token = req.headers.authorization;
+    if (!token) {
+      throw new Error("Authorization token is required.");
+    }
+
+    // Decodificar o token para obter o id_user
+    const authenticator = new Authenticator();
+    const tokenData = authenticator.getTokenData(token);
+
+    if (!tokenData || !tokenData.id) {
+      throw new Error("Invalid or missing token.");
+    }
+
+    const userId = tokenData.id;
+
+    // Verificar se o ID do parâmetro é válido
     if (!id || typeof id !== "string" || id.trim() === "") {
       throw new Error("User ID is required.");
     }
 
-    const userExists = await connection("users").where("id_user", id).first();
+    // Verificar se o usuário está tentando deletar a si mesmo
+    if (userId !== id.trim()) {
+      throw new Error("You are not authorized to delete this user.");
+    }
+
+    // Verificar se o usuário existe
+    const userExists = await connection("users")
+      .where("id_user", id.trim())
+      .first();
 
     if (!userExists) {
       throw new Error("User not found.");
     }
 
-    await connection("users").where("id_user", id).del();
+    // Deletar o usuário
+    await connection("users").where("id_user", id.trim()).del();
     res.status(200).json({ message: "User deleted successfully!" });
   } catch (error: any) {
-    if (error.message === "User ID is required.") {
+    if (error.message === "Authorization token is required.") {
+      res.status(401).json({ message: error.message });
+    } else if (error.message === "Invalid or missing token.") {
+      res.status(403).json({ message: error.message });
+    } else if (error.message === "User ID is required.") {
       res.status(400).json({ message: error.message });
     } else if (error.message === "User not found.") {
       res.status(404).json({ message: error.message });
+    } else if (
+      error.message === "You are not authorized to delete this user."
+    ) {
+      res.status(403).json({ message: error.message });
     } else {
-      res.status(500).json({ message: error.message || "Error deleting user." });
+      res
+        .status(500)
+        .json({ message: error.message || "Error deleting user." });
     }
   }
 });
-
 
 // ATUALIZAR UM USUÁRIO
 app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
@@ -573,15 +810,48 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
   const { name_user, sobrenome, age, gender } = req.body;
 
   try {
+    // Recuperar o token do cabeçalho de autorização
+    const token = req.headers.authorization;
+    if (!token) {
+      throw new Error("Authorization token is required.");
+    }
+
+    // Decodificar o token para obter o id_user
+    const authenticator = new Authenticator();
+    const tokenData = authenticator.getTokenData(token);
+
+    if (!tokenData || !tokenData.id) {
+      throw new Error("Invalid or missing token.");
+    }
+
+    const userId = tokenData.id;
+
+    // Verificar se o ID do parâmetro é válido
     if (!id || typeof id !== "string" || id.trim() === "") {
       throw new Error("User ID is required.");
     }
 
-    if (!name_user || typeof name_user !== "string" || name_user.trim().length === 0 || name_user.length > 50) {
+    // Verificar se o usuário está tentando atualizar a si mesmo
+    if (userId !== id.trim()) {
+      throw new Error("You are not authorized to update this user.");
+    }
+
+    // Validações dos campos do corpo da requisição
+    if (
+      !name_user ||
+      typeof name_user !== "string" ||
+      name_user.trim().length === 0 ||
+      name_user.length > 50
+    ) {
       throw new Error("Invalid name_user.");
     }
 
-    if (!sobrenome || typeof sobrenome !== "string" || sobrenome.trim().length === 0 || sobrenome.length > 50) {
+    if (
+      !sobrenome ||
+      typeof sobrenome !== "string" ||
+      sobrenome.trim().length === 0 ||
+      sobrenome.length > 50
+    ) {
       throw new Error("Invalid sobrenome.");
     }
 
@@ -589,34 +859,56 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
       throw new Error("Invalid age.");
     }
 
-    if (!gender || typeof gender !== "string" || gender.trim().length === 0 || gender.length > 12) {
+    if (
+      !gender ||
+      typeof gender !== "string" ||
+      gender.trim().length === 0 ||
+      gender.length > 12
+    ) {
       throw new Error("Invalid gender.");
     }
 
-    const userExists = await connection("users").where("id_user", id.trim()).first();
+    // Verificar se o usuário existe
+    const userExists = await connection("users")
+      .where("id_user", id.trim())
+      .first();
 
     if (!userExists) {
       throw new Error("User not found.");
     }
 
+    // Atualizar os dados do usuário
     await connection("users")
       .where("id_user", id.trim())
       .update({ name_user, sobrenome, age, gender });
 
     res.status(200).json({ message: "User updated successfully!" });
   } catch (error: any) {
-    if (error.message === "User ID is required.") {
+    if (error.message === "Authorization token is required.") {
+      res.status(401).json({ message: error.message });
+    } else if (error.message === "Invalid or missing token.") {
+      res.status(403).json({ message: error.message });
+    } else if (error.message === "User ID is required.") {
       res.status(400).json({ message: error.message });
     } else if (
       [
-        "Invalid name_user.", "Invalid sobrenome.", "Invalid age.", "Invalid gender.",
+        "Invalid name_user.",
+        "Invalid sobrenome.",
+        "Invalid age.",
+        "Invalid gender.",
       ].includes(error.message)
     ) {
       res.status(400).json({ message: error.message });
     } else if (error.message === "User not found.") {
       res.status(404).json({ message: error.message });
+    } else if (
+      error.message === "You are not authorized to update this user."
+    ) {
+      res.status(403).json({ message: error.message });
     } else {
-      res.status(500).json({ message: error.message || "Error updating user." });
+      res
+        .status(500)
+        .json({ message: error.message || "Error updating user." });
     }
   }
 });
@@ -637,11 +929,12 @@ app.get("/ingredients", async (req: Request, res: Response): Promise<void> => {
     if (error.message === "No ingredients found.") {
       res.status(404).json({ message: error.message });
     } else {
-      res.status(500).json({ message: error.message || "Error fetching ingredients." });
+      res
+        .status(500)
+        .json({ message: error.message || "Error fetching ingredients." });
     }
   }
 });
-
 
 // CRIAR INGREDIENTE
 app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
@@ -649,12 +942,24 @@ app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
   const gerarID = generateId();
 
   try {
-    if (!name_ingredient || typeof name_ingredient !== "string" || name_ingredient.trim().length === 0) {
-      throw new Error("Invalid name_ingredient. It must be a non-empty string.");
+    if (
+      !name_ingredient ||
+      typeof name_ingredient !== "string" ||
+      name_ingredient.trim().length === 0
+    ) {
+      throw new Error(
+        "Invalid name_ingredient. It must be a non-empty string."
+      );
     }
 
-    if (!type_ingredient || typeof type_ingredient !== "string" || type_ingredient.trim().length === 0) {
-      throw new Error("Invalid type_ingredient. It must be a non-empty string.");
+    if (
+      !type_ingredient ||
+      typeof type_ingredient !== "string" ||
+      type_ingredient.trim().length === 0
+    ) {
+      throw new Error(
+        "Invalid type_ingredient. It must be a non-empty string."
+      );
     }
 
     await connection("ingredients").insert({
@@ -671,7 +976,9 @@ app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: error.message });
     } else {
       res.status(500).json({
-        message: error.message || "An unexpected error occurred while creating the ingredient.",
+        message:
+          error.message ||
+          "An unexpected error occurred while creating the ingredient.",
       });
     }
   }
@@ -685,10 +992,28 @@ app.patch(
     const { name_ingredient, type_ingredient } = req.body;
 
     try {
+      // Recuperar o token do cabeçalho de autorização
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new Error("Authorization token is required.");
+      }
+
+      // Decodificar o token para obter o id_user
+      const authenticator = new Authenticator();
+      const tokenData = authenticator.getTokenData(token);
+
+      if (!tokenData || !tokenData.id) {
+        throw new Error("Invalid or missing token.");
+      }
+
+      const userId = tokenData.id;
+
+      // Verificar se o ID do ingrediente é válido
       if (!id) {
         throw new Error("Ingredient ID is required.");
       }
 
+      // Verificar se o ingrediente existe
       const ingredientExists = await connection("ingredients")
         .where("id_ingredient", id)
         .first();
@@ -697,28 +1022,59 @@ app.patch(
         throw new Error("Ingredient not found.");
       }
 
-      if (name_ingredient && (typeof name_ingredient !== "string" || name_ingredient.trim() === "")) {
+      // Verificar se o usuário tem permissão para atualizar o ingrediente
+      const ingredientRecipe = await connection("recipe_ingredient")
+        .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
+        .where("recipe_ingredient.id_ingredient", id)
+        .first();
+
+      if (!ingredientRecipe || ingredientRecipe.user_id !== userId) {
+        throw new Error("You are not authorized to update this ingredient.");
+      }
+
+      // Validar os dados do corpo da requisição
+      if (
+        name_ingredient &&
+        (typeof name_ingredient !== "string" || name_ingredient.trim() === "")
+      ) {
         throw new Error("Invalid name_ingredient.");
       }
 
-      if (type_ingredient && (typeof type_ingredient !== "string" || type_ingredient.trim() === "")) {
+      if (
+        type_ingredient &&
+        (typeof type_ingredient !== "string" || type_ingredient.trim() === "")
+      ) {
         throw new Error("Invalid type_ingredient.");
       }
 
+      // Atualizar o ingrediente
       await connection("ingredients")
         .where("id_ingredient", id)
         .update({ name_ingredient, type_ingredient });
 
       res.status(200).json({ message: "Ingredient updated successfully!" });
     } catch (error: any) {
-      if (error.message === "Ingredient ID is required.") {
+      if (error.message === "Authorization token is required.") {
+        res.status(401).json({ message: error.message });
+      } else if (error.message === "Invalid or missing token.") {
+        res.status(403).json({ message: error.message });
+      } else if (error.message === "Ingredient ID is required.") {
         res.status(400).json({ message: error.message });
       } else if (error.message === "Ingredient not found.") {
         res.status(404).json({ message: error.message });
-      } else if (error.message === "Invalid name_ingredient." || error.message === "Invalid type_ingredient.") {
+      } else if (
+        error.message === "Invalid name_ingredient." ||
+        error.message === "Invalid type_ingredient."
+      ) {
         res.status(400).json({ message: error.message });
+      } else if (
+        error.message === "You are not authorized to update this ingredient."
+      ) {
+        res.status(403).json({ message: error.message });
       } else {
-        res.status(500).json({ message: error.message || "Error updating ingredient." });
+        res
+          .status(500)
+          .json({ message: error.message || "Error updating ingredient." });
       }
     }
   }
@@ -731,10 +1087,28 @@ app.delete(
     const { id } = req.params;
 
     try {
+      // Recuperar o token do cabeçalho de autorização
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new Error("Authorization token is required.");
+      }
+
+      // Decodificar o token para obter o id_user
+      const authenticator = new Authenticator();
+      const tokenData = authenticator.getTokenData(token);
+
+      if (!tokenData || !tokenData.id) {
+        throw new Error("Invalid or missing token.");
+      }
+
+      const userId = tokenData.id;
+
+      // Verificar se o ID do ingrediente é válido
       if (!id || typeof id !== "string" || id.trim() === "") {
         throw new Error("Ingredient ID is required.");
       }
 
+      // Verificar se o ingrediente existe
       const ingredientExists = await connection("ingredients")
         .where("id_ingredient", id)
         .first();
@@ -743,16 +1117,36 @@ app.delete(
         throw new Error("Ingredient not found.");
       }
 
+      // Verificar se o ingrediente está associado a uma receita do usuário autenticado
+      const ingredientRecipe = await connection("recipe_ingredient")
+        .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
+        .where("recipe_ingredient.id_ingredient", id)
+        .first();
+
+      if (!ingredientRecipe || ingredientRecipe.user_id !== userId) {
+        throw new Error("You are not authorized to delete this ingredient.");
+      }
+
+      // Excluir o ingrediente
       await connection("ingredients").where("id_ingredient", id).del();
       res.status(200).json({ message: "Ingredient deleted successfully!" });
-
     } catch (error: any) {
-      if (error.message === "Ingredient ID is required") {
+      if (error.message === "Authorization token is required.") {
+        res.status(401).json({ message: error.message });
+      } else if (error.message === "Invalid or missing token.") {
+        res.status(403).json({ message: error.message });
+      } else if (error.message === "Ingredient ID is required.") {
         res.status(400).json({ message: error.message });
       } else if (error.message === "Ingredient not found.") {
         res.status(404).json({ message: error.message });
+      } else if (
+        error.message === "You are not authorized to delete this ingredient."
+      ) {
+        res.status(403).json({ message: error.message });
       } else {
-        res.status(500).json({ message: error.message || "Error deleting ingredient" });
+        res
+          .status(500)
+          .json({ message: error.message || "Error deleting ingredient" });
       }
     }
   }
@@ -793,7 +1187,9 @@ app.post("/login", async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     if (error.message === "Email is required and must be a valid string.") {
       res.status(400).json({ message: error.message });
-    } else if (error.message === "Password is required and must be a valid string.") {
+    } else if (
+      error.message === "Password is required and must be a valid string."
+    ) {
       res.status(400).json({ message: error.message });
     } else if (error.message === "User not found.") {
       res.status(404).json({ message: error.message });
