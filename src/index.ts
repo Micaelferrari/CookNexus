@@ -523,6 +523,76 @@ app.patch(
     }
   }
 );
+// ATUALIZAR UMA RECEITA
+app.put("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { title, description, prep_time, user_id, modo_preparo } = req.body;
+
+  if (!id) {
+    res.status(400).json({ message: "Recipe ID is required." });
+    return;
+  }
+
+  if (!title || !description || !prep_time || !user_id || !modo_preparo) {
+    res.status(400).json({ message: "All fields are required." });
+    return;
+  }
+  const token = req.headers.authorization;
+
+  if (!token) {
+    throw new Error("Authorization token is required.");
+  }
+
+  const authenticator = new Authenticator();
+  const tokenData = authenticator.getTokenData(token);
+
+  if (!tokenData || !tokenData.id) {
+    throw new Error("Invalid or missing token.");
+  }
+  const userId = tokenData.id;
+
+  const recipe = await connection("recipes")
+    .where("id_recipe", id.trim())
+    .first();
+
+  if (!recipe) {
+    throw new Error("Recipe not found.");
+  }
+
+  if (recipe.user_id !== userId) {
+    throw new Error(
+      "You are not authorized to update ingredients for this recipe."
+    );
+  }
+
+  try {
+    const recipeExists = await connection("recipes")
+      .where("id_recipe", id)
+      .first();
+
+    if (!recipeExists) {
+      throw new Error("Recipe not found.");
+    }
+
+    await connection("recipes").where("id_recipe", id).update({
+      title,
+      description,
+      prep_time,
+      user_id,
+      modo_preparo,
+    });
+
+    res.status(200).json({ message: "Recipe updated successfully!" });
+  } catch (error: any) {
+    if (error.message === "Authorization token is required.") {
+      res.status(401).json({ message: error.message });
+    }
+    res.status(500).json({
+      message: "An error occurred while updating the recipe.",
+      error: error.message,
+    });
+  }
+});
 
 //DELETAR INGREDIENTE DE UMA RECEITA
 app.delete(
