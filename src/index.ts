@@ -3,7 +3,7 @@ import knex, { Knex } from "knex";
 import express, { json } from "express";
 import cors from "cors";
 import { Request, Response } from "express";
-import { generateId } from "./services/generated";
+import { generateId } from "./services/Generated";
 import dotenv from "dotenv";
 import { Authenticator, AuthenticationData } from "./services/Authenticator";
 import bcrypt from "bcryptjs";
@@ -445,13 +445,17 @@ app.patch(
       const { id_recipe, id_ingredient } = req.params;
       const { quantity } = req.body;
 
+      if (!quantity || typeof quantity !== "number" || quantity <= 0) {
+        throw new Error("Invalid quantity. It must be a positive number.");
+      }
+
       // Recuperar o token do cabeçalho de autorização
       const token = req.headers.authorization;
       if (!token) {
         throw new Error("Authorization token is required.");
       }
 
-      // Decodificar o token para obter o id_user
+      // Decodificar o token para obter o `id_user`
       const authenticator = new Authenticator();
       const tokenData = authenticator.getTokenData(token);
 
@@ -461,12 +465,7 @@ app.patch(
 
       const userId = tokenData.id;
 
-      // Validar os IDs da receita e do ingrediente
-      if (!id_recipe || !id_ingredient) {
-        throw new Error("Recipe ID and Ingredient ID are required.");
-      }
-
-      // Verificar se a receita existe e pertence ao usuário autenticado
+      // Verificar se a receita existe
       const recipe = await connection("recipes")
         .where("id_recipe", id_recipe)
         .first();
@@ -475,10 +474,9 @@ app.patch(
         throw new Error("Recipe not found.");
       }
 
+      // Verificar se o usuário é o dono da receita
       if (recipe.user_id !== userId) {
-        throw new Error(
-          "You are not authorized to update ingredients for this recipe."
-        );
+        throw new Error("You are not authorized to update this recipe.");
       }
 
       // Verificar se o ingrediente existe
@@ -490,88 +488,92 @@ app.patch(
         throw new Error("Ingredient not found.");
       }
 
-      // Atualizar a quantidade do ingrediente
-      await connection("recipe_ingredient")
+      // Verificar se o ingrediente já está associado à receita
+      const recipeIngredientExists = await connection("recipe_ingredient")
         .where({ id_recipe, id_ingredient })
-        .update({ quantity });
+        .first();
 
-      res.status(200).json({ message: "Ingredient updated successfully!" });
+      if (recipeIngredientExists) {
+        // Atualizar a quantidade do ingrediente
+        await connection("recipe_ingredient")
+          .where({ id_recipe, id_ingredient })
+          .update({ quantity });
+      } else {
+        // Inserir o ingrediente na receita
+        await connection("recipe_ingredient").insert({
+          id_recipe,
+          id_ingredient,
+          quantity,
+        });
+      }
+
+      res.status(200).json({
+        message: "Ingredient successfully added or updated in the recipe!",
+      });
     } catch (error: any) {
       if (error.message === "Authorization token is required.") {
         res.status(401).json({ message: error.message });
       } else if (error.message === "Invalid or missing token.") {
         res.status(403).json({ message: error.message });
-      } else if (
-        error.message === "Recipe ID and Ingredient ID are required."
-      ) {
-        res.status(400).json({ message: error.message });
       } else if (error.message === "Recipe not found.") {
         res.status(404).json({ message: error.message });
       } else if (error.message === "Ingredient not found.") {
         res.status(404).json({ message: error.message });
       } else if (
-        error.message ===
-        "You are not authorized to update ingredients for this recipe."
+        error.message === "You are not authorized to update this recipe."
       ) {
         res.status(403).json({ message: error.message });
+      } else if (
+        error.message === "Invalid quantity. It must be a positive number."
+      ) {
+        res.status(400).json({ message: error.message });
       } else {
         res.status(500).json({
           message:
-            error.message || "Error occurred while updating the ingredient.",
+            error.message ||
+            "An error occurred while adding or updating the ingredient.",
         });
       }
     }
   }
 );
-// ATUALIZAR UMA RECEITA
+
+
+//ATUALIZAR RECEITA
 app.put("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
-  const { id } = req.params;
-  const { title, description, prep_time, user_id, modo_preparo } = req.body;
-
-  if (!id) {
-    res.status(400).json({ message: "Recipe ID is required." });
-    return;
-  }
-
-  if (!title || !description || !prep_time || !user_id || !modo_preparo) {
-    res.status(400).json({ message: "All fields are required." });
-    return;
-  }
-  const token = req.headers.authorization;
-
-  if (!token) {
-    throw new Error("Authorization token is required.");
-  }
-
-  const authenticator = new Authenticator();
-  const tokenData = authenticator.getTokenData(token);
-
-  if (!tokenData || !tokenData.id) {
-    throw new Error("Invalid or missing token.");
-  }
-  const userId = tokenData.id;
-
-  const recipe = await connection("recipes")
-    .where("id_recipe", id.trim())
-    .first();
-
-  if (!recipe) {
-    throw new Error("Recipe not found.");
-  }
-
-  if (recipe.user_id !== userId) {
-    throw new Error(
-      "You are not authorized to update ingredients for this recipe."
-    );
-  }
-
   try {
-    const recipeExists = await connection("recipes")
-      .where("id_recipe", id)
-      .first();
+    const { id } = req.params;
+    const { title, description, prep_time, user_id, modo_preparo } = req.body;
 
-    if (!recipeExists) {
+    if (!id) {
+      throw new Error("Recipe ID is required.");
+    }
+
+    if (!title || !description || !prep_time || !user_id || !modo_preparo) {
+      throw new Error("All fields are required.");
+    }
+
+    const token = req.headers.authorization;
+    if (!token) {
+      throw new Error("Authorization token is required.");
+    }
+
+    const authenticator = new Authenticator();
+    const tokenData = authenticator.getTokenData(token);
+
+    if (!tokenData || !tokenData.id) {
+      throw new Error("Invalid or missing token.");
+    }
+
+    const userId = tokenData.id;
+
+    const recipe = await connection("recipes").where("id_recipe", id.trim()).first();
+    if (!recipe) {
       throw new Error("Recipe not found.");
+    }
+
+    if (recipe.user_id !== userId) {
+      throw new Error("You are not authorized to update this recipe.");
     }
 
     await connection("recipes").where("id_recipe", id).update({
@@ -586,13 +588,22 @@ app.put("/recipes/:id", async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     if (error.message === "Authorization token is required.") {
       res.status(401).json({ message: error.message });
+    } else if (error.message === "Invalid or missing token.") {
+      res.status(403).json({ message: error.message });
+    } else if (error.message === "Recipe ID is required.") {
+      res.status(400).json({ message: error.message });
+    } else if (error.message === "Recipe not found.") {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === "You are not authorized to update this recipe.") {
+      res.status(403).json({ message: error.message });
+    } else {
+      res.status(500).json({
+        message: error.message || "An error occurred while updating the recipe.",
+      });
     }
-    res.status(500).json({
-      message: "An error occurred while updating the recipe.",
-      error: error.message,
-    });
   }
 });
+
 
 //DELETAR INGREDIENTE DE UMA RECEITA
 app.delete(
@@ -721,7 +732,7 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
       throw new Error("Sort value must be 'asc' or 'desc'.");
     }
 
-    const validarSortBy = ["name_user", "sobrenome", "age"];
+    const validarSortBy = ["name_user", "surname", "age"];
     if (!validarSortBy.includes(sortBy)) {
       throw new Error(
         `Invalid column for sortBy. Value must be one of: ${validarSortBy.join(
@@ -754,7 +765,7 @@ app.get("/users", async (req: Request, res: Response): Promise<void> => {
 
 // CRIAR UM USUÁRIO
 app.post("/users", async (req: Request, res: Response): Promise<void> => {
-  const { name_user, sobrenome, age, gender, email, password } = req.body;
+  const { name_user, surname, age, gender, email, password } = req.body;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -762,7 +773,7 @@ app.post("/users", async (req: Request, res: Response): Promise<void> => {
     const newUser: User = {
       id_user: generateId(),
       name_user,
-      sobrenome,
+      surname,
       age,
       gender,
       email,
@@ -781,8 +792,8 @@ app.post("/users", async (req: Request, res: Response): Promise<void> => {
       throw new Error("Invalid name_user");
     }
 
-    if (!newUser.sobrenome || newUser.sobrenome.length > 50) {
-      throw new Error("Invalid sobrenome");
+    if (!newUser.surname || newUser.surname.length > 50) {
+      throw new Error("Invalid surname");
     }
 
     if (typeof newUser.age !== "number" || newUser.age <= 0) {
@@ -877,7 +888,7 @@ app.delete("/users/:id", async (req: Request, res: Response): Promise<void> => {
 // ATUALIZAR UM USUÁRIO
 app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { name_user, sobrenome, age, gender } = req.body;
+  const { name_user, surname, age, gender } = req.body;
 
   try {
     // Recuperar o token do cabeçalho de autorização
@@ -886,7 +897,6 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
       throw new Error("Authorization token is required.");
     }
 
-    // Decodificar o token para obter o id_user
     const authenticator = new Authenticator();
     const tokenData = authenticator.getTokenData(token);
 
@@ -896,17 +906,14 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
 
     const userId = tokenData.id;
 
-    // Verificar se o ID do parâmetro é válido
     if (!id || typeof id !== "string" || id.trim() === "") {
       throw new Error("User ID is required.");
     }
 
-    // Verificar se o usuário está tentando atualizar a si mesmo
     if (userId !== id.trim()) {
       throw new Error("You are not authorized to update this user.");
     }
 
-    // Validações dos campos do corpo da requisição
     if (
       !name_user ||
       typeof name_user !== "string" ||
@@ -917,12 +924,12 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
     }
 
     if (
-      !sobrenome ||
-      typeof sobrenome !== "string" ||
-      sobrenome.trim().length === 0 ||
-      sobrenome.length > 50
+      !surname ||
+      typeof surname !== "string" ||
+      surname.trim().length === 0 ||
+      surname.length > 50
     ) {
-      throw new Error("Invalid sobrenome.");
+      throw new Error("Invalid surname.");
     }
 
     if (typeof age !== "number" || age <= 0) {
@@ -938,7 +945,6 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
       throw new Error("Invalid gender.");
     }
 
-    // Verificar se o usuário existe
     const userExists = await connection("users")
       .where("id_user", id.trim())
       .first();
@@ -947,10 +953,9 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
       throw new Error("User not found.");
     }
 
-    // Atualizar os dados do usuário
     await connection("users")
       .where("id_user", id.trim())
-      .update({ name_user, sobrenome, age, gender });
+      .update({ name_user, surname, age, gender });
 
     res.status(200).json({ message: "User updated successfully!" });
   } catch (error: any) {
@@ -963,7 +968,7 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
     } else if (
       [
         "Invalid name_user.",
-        "Invalid sobrenome.",
+        "Invalid surname.",
         "Invalid age.",
         "Invalid gender.",
       ].includes(error.message)
@@ -1092,13 +1097,8 @@ app.patch(
         throw new Error("Ingredient not found.");
       }
 
-      // Verificar se o usuário tem permissão para atualizar o ingrediente
-      const ingredientRecipe = await connection("recipe_ingredient")
-        .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
-        .where("recipe_ingredient.id_ingredient", id)
-        .first();
-
-      if (!ingredientRecipe || ingredientRecipe.user_id !== userId) {
+      // Verificar se o ingrediente foi criado pelo usuário autenticado
+      if (ingredientExists.user_id !== userId) {
         throw new Error("You are not authorized to update this ingredient.");
       }
 
@@ -1149,6 +1149,7 @@ app.patch(
     }
   }
 );
+
 
 // DELETAR INGREDIENTE
 app.delete(

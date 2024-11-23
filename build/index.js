@@ -15,7 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const knex_1 = __importDefault(require("knex"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
-const generated_1 = require("./services/generated");
+const Generated_1 = require("./services/Generated");
 const dotenv_1 = __importDefault(require("dotenv"));
 const Authenticator_1 = require("./services/Authenticator");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
@@ -139,14 +139,27 @@ app.get("/recipes/:title", (req, res) => __awaiter(void 0, void 0, void 0, funct
 app.delete("/recipes/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
         if (!id || typeof id !== "string" || id.trim() === "") {
             throw new Error("Recipe ID is required and must be a valid string.");
         }
-        const recipeExists = yield connection("recipes")
+        const recipe = yield connection("recipes")
             .where("id_recipe", id.trim())
             .first();
-        if (!recipeExists) {
+        if (!recipe) {
             throw new Error("Recipe not found.");
+        }
+        if (recipe.user_id !== userId) {
+            throw new Error("You are not authorized to delete this recipe.");
         }
         yield connection("recipes").where("id_recipe", id.trim()).del();
         res.status(200).json({ message: "Recipe deleted successfully!" });
@@ -157,6 +170,12 @@ app.delete("/recipes/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
         }
         else if (error.message === "Recipe ID is required and must be a valid string.") {
             res.status(400).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to delete this recipe.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
         }
         else {
             res
@@ -201,7 +220,7 @@ app.post("/recipes", (req, res) => __awaiter(void 0, void 0, void 0, function* (
             throw new Error("User not found.");
         }
         const newRecipe = {
-            id_recipe: (0, generated_1.generateId)(),
+            id_recipe: (0, Generated_1.generateId)(),
             title,
             description,
             prep_time,
@@ -262,9 +281,7 @@ app.get("/recipes/ingredients/:ingredient", (req, res) => __awaiter(void 0, void
             res.status(404).json({ message: error.message });
         }
         else {
-            res
-                .status(500)
-                .json({
+            res.status(500).json({
                 message: error.message || "Error fetching recipes by ingredient",
             });
         }
@@ -316,29 +333,59 @@ app.patch("/recipes/:id_recipe/ingredients/:id_ingredient", (req, res) => __awai
     try {
         const { id_recipe, id_ingredient } = req.params;
         const { quantity } = req.body;
-        if (!id_recipe || !id_ingredient) {
-            throw new Error("Recipe ID and Ingredient ID are required.");
+        if (!quantity || typeof quantity !== "number" || quantity <= 0) {
+            throw new Error("Invalid quantity. It must be a positive number.");
         }
-        const recipeExists = yield connection("recipes")
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
+        const recipe = yield connection("recipes")
             .where("id_recipe", id_recipe)
             .first();
+        if (!recipe) {
+            throw new Error("Recipe not found.");
+        }
+        if (recipe.user_id !== userId) {
+            throw new Error("You are not authorized to update this recipe.");
+        }
         const ingredientExists = yield connection("ingredients")
             .where("id_ingredient", id_ingredient)
             .first();
-        if (!recipeExists) {
-            throw new Error("Recipe not found.");
-        }
         if (!ingredientExists) {
             throw new Error("Ingredient not found.");
         }
-        yield connection("recipe_ingredient")
+        const recipeIngredientExists = yield connection("recipe_ingredient")
             .where({ id_recipe, id_ingredient })
-            .update({ quantity });
-        res.status(200).json({ message: "Ingredient updated successfully!" });
+            .first();
+        if (recipeIngredientExists) {
+            yield connection("recipe_ingredient")
+                .where({ id_recipe, id_ingredient })
+                .update({ quantity });
+        }
+        else {
+            yield connection("recipe_ingredient").insert({
+                id_recipe,
+                id_ingredient,
+                quantity,
+            });
+        }
+        res.status(200).json({
+            message: "Ingredient successfully added or updated in the recipe!",
+        });
     }
     catch (error) {
-        if (error.message === "Recipe ID and Ingredient ID are required.") {
-            res.status(400).json({ message: error.message });
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
         }
         else if (error.message === "Recipe not found.") {
             res.status(404).json({ message: error.message });
@@ -346,9 +393,75 @@ app.patch("/recipes/:id_recipe/ingredients/:id_ingredient", (req, res) => __awai
         else if (error.message === "Ingredient not found.") {
             res.status(404).json({ message: error.message });
         }
+        else if (error.message === "You are not authorized to update this recipe.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Invalid quantity. It must be a positive number.") {
+            res.status(400).json({ message: error.message });
+        }
         else {
             res.status(500).json({
-                message: error.message || " error occurred while updating the ingredient.",
+                message: error.message ||
+                    "An error occurred while adding or updating the ingredient.",
+            });
+        }
+    }
+}));
+app.put("/recipes/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { title, description, prep_time, user_id, modo_preparo } = req.body;
+        if (!id) {
+            throw new Error("Recipe ID is required.");
+        }
+        if (!title || !description || !prep_time || !user_id || !modo_preparo) {
+            throw new Error("All fields are required.");
+        }
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
+        const recipe = yield connection("recipes").where("id_recipe", id.trim()).first();
+        if (!recipe) {
+            throw new Error("Recipe not found.");
+        }
+        if (recipe.user_id !== userId) {
+            throw new Error("You are not authorized to update this recipe.");
+        }
+        yield connection("recipes").where("id_recipe", id).update({
+            title,
+            description,
+            prep_time,
+            user_id,
+            modo_preparo,
+        });
+        res.status(200).json({ message: "Recipe updated successfully!" });
+    }
+    catch (error) {
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Recipe ID is required.") {
+            res.status(400).json({ message: error.message });
+        }
+        else if (error.message === "Recipe not found.") {
+            res.status(404).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to update this recipe.") {
+            res.status(403).json({ message: error.message });
+        }
+        else {
+            res.status(500).json({
+                message: error.message || "An error occurred while updating the recipe.",
             });
         }
     }
@@ -356,14 +469,27 @@ app.patch("/recipes/:id_recipe/ingredients/:id_ingredient", (req, res) => __awai
 app.delete("/recipes/:id_recipe/ingredients/:id_ingredient", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id_recipe, id_ingredient } = req.params;
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
         if (!id_recipe || !id_ingredient) {
             throw new Error("Recipe ID and Ingredient ID are required.");
         }
-        const recipeExists = yield connection("recipes")
+        const recipe = yield connection("recipes")
             .where("id_recipe", id_recipe)
             .first();
-        if (!recipeExists) {
+        if (!recipe) {
             throw new Error("Recipe not found.");
+        }
+        if (recipe.user_id !== userId) {
+            throw new Error("You are not authorized to remove ingredients from this recipe.");
         }
         const ingredientExists = yield connection("ingredients")
             .where("id_ingredient", id_ingredient)
@@ -385,7 +511,13 @@ app.delete("/recipes/:id_recipe/ingredients/:id_ingredient", (req, res) => __awa
             .json({ message: "Ingredient removed from recipe successfully!" });
     }
     catch (error) {
-        if (error.message === "Recipe ID and Ingredient ID are required.") {
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Recipe ID and Ingredient ID are required.") {
             res.status(400).json({ message: error.message });
         }
         else if (error.message === "Recipe not found.") {
@@ -396,6 +528,10 @@ app.delete("/recipes/:id_recipe/ingredients/:id_ingredient", (req, res) => __awa
         }
         else if (error.message === "Ingredient is not associated with this recipe.") {
             res.status(404).json({ message: error.message });
+        }
+        else if (error.message ===
+            "You are not authorized to remove ingredients from this recipe.") {
+            res.status(403).json({ message: error.message });
         }
         else {
             res.status(500).json({
@@ -422,7 +558,7 @@ app.get("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         if (sort && sort !== "asc" && sort !== "desc") {
             throw new Error("Sort value must be 'asc' or 'desc'.");
         }
-        const validarSortBy = ["name_user", "sobrenome", "age"];
+        const validarSortBy = ["name_user", "surname", "age"];
         if (!validarSortBy.includes(sortBy)) {
             throw new Error(`Invalid column for sortBy. Value must be one of: ${validarSortBy.join(", ")}.`);
         }
@@ -448,13 +584,13 @@ app.get("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 }));
 app.post("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { name_user, sobrenome, age, gender, email, password } = req.body;
+    const { name_user, surname, age, gender, email, password } = req.body;
     try {
         const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
         const newUser = {
-            id_user: (0, generated_1.generateId)(),
+            id_user: (0, Generated_1.generateId)(),
             name_user,
-            sobrenome,
+            surname,
             age,
             gender,
             email,
@@ -469,8 +605,8 @@ app.post("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         if (!newUser.name_user || newUser.name_user.length > 50) {
             throw new Error("Invalid name_user");
         }
-        if (!newUser.sobrenome || newUser.sobrenome.length > 50) {
-            throw new Error("Invalid sobrenome");
+        if (!newUser.surname || newUser.surname.length > 50) {
+            throw new Error("Invalid surname");
         }
         if (typeof newUser.age !== "number" || newUser.age <= 0) {
             throw new Error("Invalid age");
@@ -496,22 +632,46 @@ app.post("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 app.delete("/users/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     try {
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
         if (!id || typeof id !== "string" || id.trim() === "") {
             throw new Error("User ID is required.");
         }
-        const userExists = yield connection("users").where("id_user", id).first();
+        if (userId !== id.trim()) {
+            throw new Error("You are not authorized to delete this user.");
+        }
+        const userExists = yield connection("users")
+            .where("id_user", id.trim())
+            .first();
         if (!userExists) {
             throw new Error("User not found.");
         }
-        yield connection("users").where("id_user", id).del();
+        yield connection("users").where("id_user", id.trim()).del();
         res.status(200).json({ message: "User deleted successfully!" });
     }
     catch (error) {
-        if (error.message === "User ID is required.") {
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "User ID is required.") {
             res.status(400).json({ message: error.message });
         }
         else if (error.message === "User not found.") {
             res.status(404).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to delete this user.") {
+            res.status(403).json({ message: error.message });
         }
         else {
             res
@@ -522,10 +682,23 @@ app.delete("/users/:id", (req, res) => __awaiter(void 0, void 0, void 0, functio
 }));
 app.put("/users/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const { name_user, sobrenome, age, gender } = req.body;
+    const { name_user, surname, age, gender } = req.body;
     try {
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
         if (!id || typeof id !== "string" || id.trim() === "") {
             throw new Error("User ID is required.");
+        }
+        if (userId !== id.trim()) {
+            throw new Error("You are not authorized to update this user.");
         }
         if (!name_user ||
             typeof name_user !== "string" ||
@@ -533,11 +706,11 @@ app.put("/users/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* 
             name_user.length > 50) {
             throw new Error("Invalid name_user.");
         }
-        if (!sobrenome ||
-            typeof sobrenome !== "string" ||
-            sobrenome.trim().length === 0 ||
-            sobrenome.length > 50) {
-            throw new Error("Invalid sobrenome.");
+        if (!surname ||
+            typeof surname !== "string" ||
+            surname.trim().length === 0 ||
+            surname.length > 50) {
+            throw new Error("Invalid surname.");
         }
         if (typeof age !== "number" || age <= 0) {
             throw new Error("Invalid age.");
@@ -556,16 +729,22 @@ app.put("/users/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }
         yield connection("users")
             .where("id_user", id.trim())
-            .update({ name_user, sobrenome, age, gender });
+            .update({ name_user, surname, age, gender });
         res.status(200).json({ message: "User updated successfully!" });
     }
     catch (error) {
-        if (error.message === "User ID is required.") {
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "User ID is required.") {
             res.status(400).json({ message: error.message });
         }
         else if ([
             "Invalid name_user.",
-            "Invalid sobrenome.",
+            "Invalid surname.",
             "Invalid age.",
             "Invalid gender.",
         ].includes(error.message)) {
@@ -573,6 +752,9 @@ app.put("/users/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }
         else if (error.message === "User not found.") {
             res.status(404).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to update this user.") {
+            res.status(403).json({ message: error.message });
         }
         else {
             res
@@ -602,7 +784,7 @@ app.get("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, function
 }));
 app.post("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { name_ingredient, type_ingredient } = req.body;
-    const gerarID = (0, generated_1.generateId)();
+    const gerarID = (0, Generated_1.generateId)();
     try {
         if (!name_ingredient ||
             typeof name_ingredient !== "string" ||
@@ -640,6 +822,16 @@ app.patch("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, fu
     const { id } = req.params;
     const { name_ingredient, type_ingredient } = req.body;
     try {
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
         if (!id) {
             throw new Error("Ingredient ID is required.");
         }
@@ -663,7 +855,13 @@ app.patch("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, fu
         res.status(200).json({ message: "Ingredient updated successfully!" });
     }
     catch (error) {
-        if (error.message === "Ingredient ID is required.") {
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Ingredient ID is required.") {
             res.status(400).json({ message: error.message });
         }
         else if (error.message === "Ingredient not found.") {
@@ -672,6 +870,9 @@ app.patch("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, fu
         else if (error.message === "Invalid name_ingredient." ||
             error.message === "Invalid type_ingredient.") {
             res.status(400).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to update this ingredient.") {
+            res.status(403).json({ message: error.message });
         }
         else {
             res
@@ -683,6 +884,16 @@ app.patch("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, fu
 app.delete("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     try {
+        const token = req.headers.authorization;
+        if (!token) {
+            throw new Error("Authorization token is required.");
+        }
+        const authenticator = new Authenticator_1.Authenticator();
+        const tokenData = authenticator.getTokenData(token);
+        if (!tokenData || !tokenData.id) {
+            throw new Error("Invalid or missing token.");
+        }
+        const userId = tokenData.id;
         if (!id || typeof id !== "string" || id.trim() === "") {
             throw new Error("Ingredient ID is required.");
         }
@@ -692,15 +903,31 @@ app.delete("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, f
         if (!ingredientExists) {
             throw new Error("Ingredient not found.");
         }
+        const ingredientRecipe = yield connection("recipe_ingredient")
+            .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
+            .where("recipe_ingredient.id_ingredient", id)
+            .first();
+        if (!ingredientRecipe || ingredientRecipe.user_id !== userId) {
+            throw new Error("You are not authorized to delete this ingredient.");
+        }
         yield connection("ingredients").where("id_ingredient", id).del();
         res.status(200).json({ message: "Ingredient deleted successfully!" });
     }
     catch (error) {
-        if (error.message === "Ingredient ID is required") {
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Ingredient ID is required.") {
             res.status(400).json({ message: error.message });
         }
         else if (error.message === "Ingredient not found.") {
             res.status(404).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to delete this ingredient.") {
+            res.status(403).json({ message: error.message });
         }
         else {
             res
