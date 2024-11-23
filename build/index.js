@@ -783,7 +783,7 @@ app.get("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 }));
 app.post("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { name_ingredient, type_ingredient } = req.body;
+    const { name_ingredient, type_ingredient, user_id } = req.body;
     const gerarID = (0, Generated_1.generateId)();
     try {
         if (!name_ingredient ||
@@ -796,10 +796,16 @@ app.post("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, functio
             type_ingredient.trim().length === 0) {
             throw new Error("Invalid type_ingredient. It must be a non-empty string.");
         }
+        const existUser = yield connection("users")
+            .where("id_user", user_id).first();
+        if (!existUser) {
+            throw new Error("Para criar um ingrediente o usuário deve ser válido");
+        }
         yield connection("ingredients").insert({
             id_ingredient: gerarID,
             name_ingredient: name_ingredient.trim(),
             type_ingredient: type_ingredient.trim(),
+            user_id: user_id
         });
         res.status(201).json({ message: "Ingredient created successfully!" });
     }
@@ -818,41 +824,70 @@ app.post("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, functio
         }
     }
 }));
-app.post("/ingredients", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.patch("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
     const { name_ingredient, type_ingredient } = req.body;
     try {
         const token = req.headers.authorization;
         if (!token) {
             throw new Error("Authorization token is required.");
         }
+        const authenticator = new Authenticator_1.Authenticator();
         const tokenData = authenticator.getTokenData(token);
         if (!tokenData || !tokenData.id) {
             throw new Error("Invalid or missing token.");
         }
         const userId = tokenData.id;
-        if (!name_ingredient ||
-            typeof name_ingredient !== "string" ||
-            name_ingredient.trim().length === 0) {
-            throw new Error("Invalid name_ingredient. It must be a non-empty string.");
+        if (!id) {
+            throw new Error("Ingredient ID is required.");
         }
-        if (!type_ingredient ||
-            typeof type_ingredient !== "string" ||
-            type_ingredient.trim().length === 0) {
-            throw new Error("Invalid type_ingredient. It must be a non-empty string.");
+        const ingredientExists = yield connection("ingredients")
+            .where("id_ingredient", id)
+            .first();
+        if (!ingredientExists) {
+            throw new Error("Ingredient not found.");
         }
-        yield connection("ingredients").insert({
-            id_ingredient: (0, Generated_1.generateId)(),
-            name_ingredient: name_ingredient.trim(),
-            type_ingredient: type_ingredient.trim(),
-            user_id: userId,
-        });
-        res.status(201).json({ message: "Ingredient created successfully!" });
+        if (ingredientExists.user_id && ingredientExists.user_id !== userId) {
+            throw new Error("You are not authorized to delete this ingredient.");
+        }
+        if (name_ingredient &&
+            (typeof name_ingredient !== "string" || name_ingredient.trim() === "")) {
+            throw new Error("Invalid name_ingredient.");
+        }
+        if (type_ingredient &&
+            (typeof type_ingredient !== "string" || type_ingredient.trim() === "")) {
+            throw new Error("Invalid type_ingredient.");
+        }
+        yield connection("ingredients")
+            .where("id_ingredient", id)
+            .update({ name_ingredient, type_ingredient });
+        res.status(200).json({ message: "Ingredient updated successfully!" });
     }
     catch (error) {
-        res.status(400).json({
-            message: error.message ||
-                "An unexpected error occurred while creating the ingredient.",
-        });
+        if (error.message === "Authorization token is required.") {
+            res.status(401).json({ message: error.message });
+        }
+        else if (error.message === "Invalid or missing token.") {
+            res.status(403).json({ message: error.message });
+        }
+        else if (error.message === "Ingredient ID is required.") {
+            res.status(400).json({ message: error.message });
+        }
+        else if (error.message === "Ingredient not found.") {
+            res.status(404).json({ message: error.message });
+        }
+        else if (error.message === "Invalid name_ingredient." ||
+            error.message === "Invalid type_ingredient.") {
+            res.status(400).json({ message: error.message });
+        }
+        else if (error.message === "You are not authorized to update this ingredient.") {
+            res.status(403).json({ message: error.message });
+        }
+        else {
+            res
+                .status(500)
+                .json({ message: error.message || "Error updating ingredient." });
+        }
     }
 }));
 app.delete("/ingredients/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {

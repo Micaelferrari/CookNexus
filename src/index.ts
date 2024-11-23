@@ -1013,7 +1013,7 @@ app.get("/ingredients", async (req: Request, res: Response): Promise<void> => {
 
 // CRIAR INGREDIENTE
 app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
-  const { name_ingredient, type_ingredient } = req.body;
+  const { name_ingredient, type_ingredient, user_id } = req.body;
   const gerarID = generateId();
 
   try {
@@ -1037,10 +1037,18 @@ app.post("/ingredients", async (req: Request, res: Response): Promise<void> => {
       );
     }
 
+    const existUser = await connection("users")
+    .where("id_user", user_id).first();
+
+    if(!existUser){
+      throw new Error("Para criar um ingrediente o usuário deve ser válido")
+    }
+
     await connection("ingredients").insert({
       id_ingredient: gerarID,
       name_ingredient: name_ingredient.trim(),
       type_ingredient: type_ingredient.trim(),
+      user_id : user_id
     });
 
     res.status(201).json({ message: "Ingredient created successfully!" });
@@ -1097,12 +1105,10 @@ app.patch(
         throw new Error("Ingredient not found.");
       }
 
-      if (ingredientExists.user_id !== userId) {
-        
-        throw new Error("You are not authorized to update this ingredient.");
-    }
-    
-
+      //VERIFICAR SE O INGREDIENTE PERTENCE AO USUÁRIO 
+      if (ingredientExists.user_id && ingredientExists.user_id !== userId) {
+        throw new Error("You are not authorized to delete this ingredient.");
+      }
       // Validar os dados do corpo da requisição
       if (
         name_ingredient &&
