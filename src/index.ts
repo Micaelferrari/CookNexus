@@ -1097,10 +1097,11 @@ app.patch(
         throw new Error("Ingredient not found.");
       }
 
-      // Verificar se o ingrediente foi criado pelo usuário autenticado
       if (ingredientExists.user_id !== userId) {
+        
         throw new Error("You are not authorized to update this ingredient.");
-      }
+    }
+    
 
       // Validar os dados do corpo da requisição
       if (
@@ -1158,13 +1159,11 @@ app.delete(
     const { id } = req.params;
 
     try {
-      // Recuperar o token do cabeçalho de autorização
       const token = req.headers.authorization;
       if (!token) {
         throw new Error("Authorization token is required.");
       }
 
-      // Decodificar o token para obter o id_user
       const authenticator = new Authenticator();
       const tokenData = authenticator.getTokenData(token);
 
@@ -1174,12 +1173,6 @@ app.delete(
 
       const userId = tokenData.id;
 
-      // Verificar se o ID do ingrediente é válido
-      if (!id || typeof id !== "string" || id.trim() === "") {
-        throw new Error("Ingredient ID is required.");
-      }
-
-      // Verificar se o ingrediente existe
       const ingredientExists = await connection("ingredients")
         .where("id_ingredient", id)
         .first();
@@ -1188,13 +1181,8 @@ app.delete(
         throw new Error("Ingredient not found.");
       }
 
-      // Verificar se o ingrediente está associado a uma receita do usuário autenticado
-      const ingredientRecipe = await connection("recipe_ingredient")
-        .join("recipes", "recipe_ingredient.id_recipe", "recipes.id_recipe")
-        .where("recipe_ingredient.id_ingredient", id)
-        .first();
-
-      if (!ingredientRecipe || ingredientRecipe.user_id !== userId) {
+      //VERIFICAR SE O INGREDIENTE PERTENCE AO USUÁRIO 
+      if (ingredientExists.user_id && ingredientExists.user_id !== userId) {
         throw new Error("You are not authorized to delete this ingredient.");
       }
 
@@ -1222,6 +1210,7 @@ app.delete(
     }
   }
 );
+
 
 app.post("/login", async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
