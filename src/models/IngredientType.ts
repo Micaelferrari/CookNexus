@@ -1,7 +1,7 @@
 export  type Ingredient = {
-    id: string;
-    name: string;
-    type: string;
+    id_ingredient: string;
+    name_ingredient: string;
+    type_ingredient: string;
     user_id : string
 };
 
