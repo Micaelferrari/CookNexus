@@ -1,5 +1,5 @@
 export type RecipeIngredient = {
-    id_recipe: number;
-    id_ingredient: number;
+    id_recipe: string;
+    id_ingredient: string;
     quantity: number
 };
