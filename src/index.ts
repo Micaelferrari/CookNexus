@@ -988,6 +988,69 @@ app.put("/users/:id", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+
+app.post("/login", async (req: Request, res: Response): Promise<void> => {
+  const { email, password } = req.body;
+
+  try {
+    if (!email || typeof email !== "string" || email.trim() === "") {
+      throw new Error("Email is required and must be a valid string.");
+    }
+
+    if (!password || typeof password !== "string" || password.trim() === "") {
+      throw new Error("Password is required and must be a valid string.");
+    }
+
+    const user = await connection("users").where("email", email.trim()).first();
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found.");
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      res.status(401);
+      throw new Error("Invalid password.");
+    }
+
+    const payload: AuthenticationData = {
+      id: user.id_user,
+    };
+    const token = authenticator.generateToken(payload);
+
+    res.status(200).json({ message: "Login successful", token });
+  } catch (error: any) {
+    if (error.message === "Email is required and must be a valid string.") {
+      res.status(400).json({ message: error.message });
+    } else if (
+      error.message === "Password is required and must be a valid string."
+    ) {
+      res.status(400).json({ message: error.message });
+    } else if (error.message === "User not found.") {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === "Invalid password.") {
+      res.status(401).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: "An unexpected error occurred." });
+    }
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ENDPOINTS DO INGREDIENTS
 
 // BUSCAR TODOS OS INGREDIENTES
@@ -1217,55 +1280,6 @@ app.delete(
   }
 );
 
-
-app.post("/login", async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
-
-  try {
-    if (!email || typeof email !== "string" || email.trim() === "") {
-      throw new Error("Email is required and must be a valid string.");
-    }
-
-    if (!password || typeof password !== "string" || password.trim() === "") {
-      throw new Error("Password is required and must be a valid string.");
-    }
-
-    const user = await connection("users").where("email", email.trim()).first();
-
-    if (!user) {
-      res.status(404);
-      throw new Error("User not found.");
-    }
-
-    const passwordMatch = await bcrypt.compare(password, user.password);
-
-    if (!passwordMatch) {
-      res.status(401);
-      throw new Error("Invalid password.");
-    }
-
-    const payload: AuthenticationData = {
-      id: user.id_user,
-    };
-    const token = authenticator.generateToken(payload);
-
-    res.status(200).json({ message: "Login successful", token });
-  } catch (error: any) {
-    if (error.message === "Email is required and must be a valid string.") {
-      res.status(400).json({ message: error.message });
-    } else if (
-      error.message === "Password is required and must be a valid string."
-    ) {
-      res.status(400).json({ message: error.message });
-    } else if (error.message === "User not found.") {
-      res.status(404).json({ message: error.message });
-    } else if (error.message === "Invalid password.") {
-      res.status(401).json({ message: error.message });
-    } else {
-      res.status(500).json({ message: "An unexpected error occurred." });
-    }
-  }
-});
 
 // Iniciar o servidor
 app.listen(3000, () => {
