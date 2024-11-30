@@ -12,7 +12,6 @@ export class IngredientBusiness {
   async createIngredient(data: Omit<Ingredient, "id_ingredient">): Promise<string> {
     const { name_ingredient, type_ingredient, user_id } = data;
 
-    // Validações
     if (!name_ingredient || name_ingredient.trim().length === 0) {
       throw new Error("Invalid name_ingredient.");
     }
@@ -20,11 +19,10 @@ export class IngredientBusiness {
       throw new Error("Invalid type_ingredient.");
     }
 
-    // Verifica se o usuário existe
+
     const userExists = await connection("users").where("id_user", user_id).first();
     if (!userExists) throw new Error("Para criar um ingrediente o usuário deve ser válido");
 
-    // Gera o ID do ingrediente
     const newIngredient: Ingredient = {
       id_ingredient: generateId(), // Gera ID aqui
       name_ingredient: name_ingredient.trim(),
@@ -32,7 +30,6 @@ export class IngredientBusiness {
       user_id,
     };
 
-    // Insere no banco de dados
     await connection("ingredients").insert(newIngredient);
     return "Ingredient created successfully!";
   }

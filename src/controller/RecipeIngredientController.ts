@@ -1,8 +1,12 @@
+import { connection } from './../connection';
+import { verifyToken } from './../services/VerifyToken';
 import { Request, Response } from "express";
 import { RecipeIngredientBusiness } from "../business/RecipeIngredientBusiness";
 
+
+
 export class RecipeIngredientController {
-  private recipeIngredientBusiness = new RecipeIngredientBusiness();
+   recipeIngredientBusiness = new RecipeIngredientBusiness();
 
   async addIngredientToRecipe(req: Request, res: Response): Promise<void> {
     try {
@@ -11,6 +15,24 @@ export class RecipeIngredientController {
 
       if (!quantity || typeof quantity !== "number" || quantity <= 0) {
         throw new Error("Invalid quantity. It must be a positive number.");
+      }
+
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new Error("Authorization token is required.");
+      }
+
+      const tokenWithoutBearer = token.startsWith("Bearer ") ? token.slice(7) : token;
+
+      const userId = verifyToken(tokenWithoutBearer);
+
+      const recipe = await connection("recipes").where("id_recipe", id_recipe).first();
+      if (!recipe) {
+        throw new Error("Recipe not found.");
+      }
+
+      if (recipe.user_id !== userId) {
+        throw new Error("You are not authorized to modify this recipe.");
       }
 
       await this.recipeIngredientBusiness.addIngredientToRecipe({

@@ -10,7 +10,7 @@ export const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Registrar as rotas
+
 app.use("/recipes", RecipeRoutes);
 app.use("/users", UserRoutes);
 app.use("/ingredients", IngredientRoutes);

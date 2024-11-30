@@ -4,13 +4,10 @@ import { UserController } from "../controller/UserController";
 const userController = new UserController();
 const UserRoutes = Router();
 
-// Rotas relacionadas a usuários
 UserRoutes.get("/", userController.getUsers.bind(userController));
 UserRoutes.post("/", userController.createUser.bind(userController));
 UserRoutes.delete("/:id", userController.deleteUser.bind(userController));
 UserRoutes.put("/:id", userController.updateUser.bind(userController));
-
-// Rota para login
 UserRoutes.post("/login", userController.login.bind(userController));
 
 export default UserRoutes;

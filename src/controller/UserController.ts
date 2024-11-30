@@ -31,7 +31,7 @@ export class UserController {
     try {
       const { name_user, surname, age, gender, email, password }: User = req.body;
 
-      // Validação do corpo da requisição
+      // VALIDAÇÃO
       if (!name_user || name_user.length < 3 || name_user.length > 50) {
         throw new Error("Name must be between 3 and 50 characters.");
       }
@@ -125,7 +125,6 @@ export class UserController {
         throw new Error("You are not authorized to update this user.");
       }
 
-      // Validações no corpo da requisição para a atualização
       if (updates.name_user && (updates.name_user.length < 3 || updates.name_user.length > 50)) {
         throw new Error("Name must be between 3 and 50 characters.");
       }
@@ -166,7 +165,6 @@ export class UserController {
     try {
       const { email, password } = req.body;
 
-      // Validação do login
       if (!email || !/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/.test(email)) {
         throw new Error("Invalid email format.");
       }
