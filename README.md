@@ -3,7 +3,7 @@
 Esta é uma API RESTful desenvolvida com **Node.js**, **Express**, e **Knex.js** para gerenciar receitas, ingredientes e usuários. A API permite realizar operações de CRUD (Criar, Ler, Atualizar, Excluir), com autenticação baseada em token JWT e validações para garantir a integridade dos dados.
 
 
-## Documentação do Postman disponível em: //tenho que colocar o link aqui
+## Documentação do Postman disponível em: https://elements.getpostman.com/redirect?entityId=37745648-03ccd663-9d9c-4c0d-9d35-d3809b81b0d8&entityType=collection
 
 ## Tecnologias Utilizadas
 
